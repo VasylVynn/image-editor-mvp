@@ -8,10 +8,10 @@ import DownloadButton from "@/components/DownloadButton";
 
 type ProcessingMode = "local" | "replicate" | "openai-1.5";
 
-const MODE_OPTIONS: { value: ProcessingMode; label: string; price: string }[] = [
-  { value: "local", label: "Local", price: "Free" },
-  { value: "replicate", label: "Replicate", price: "~$0.02" },
-  { value: "openai-1.5", label: "OpenAI 1.5", price: "~$0.13" },
+const MODE_OPTIONS: { value: ProcessingMode; label: string }[] = [
+  { value: "local", label: "Локальне" },
+  { value: "replicate", label: "Replicate" },
+  { value: "openai-1.5", label: "OpenAI 1.5" },
 ];
 
 export default function Home() {
@@ -60,6 +60,23 @@ export default function Home() {
     }
   }, [originalFile, mode]);
 
+  const handleModeChange = useCallback(
+    (newMode: ProcessingMode) => {
+      if (newMode === mode) return;
+      if (processedImage) {
+        const confirmed = window.confirm(
+          "Зміна режиму скине поточний результат. Продовжити?"
+        );
+        if (!confirmed) return;
+        URL.revokeObjectURL(processedImage);
+        setProcessedImage(null);
+        setError(null);
+      }
+      setMode(newMode);
+    },
+    [mode, processedImage]
+  );
+
   const handleReset = useCallback(() => {
     if (originalImage) URL.revokeObjectURL(originalImage);
     if (processedImage) URL.revokeObjectURL(processedImage);
@@ -75,11 +92,10 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-900">
-            Product Image Editor
+            Редактор зображень товарів
           </h1>
           <p className="text-gray-600 mt-2">
-            Upload a product image to remove background, center, and place on
-            gray
+            Завантажте фото товару — видалимо фон, відцентруємо та поставимо на сірий фон
           </p>
         </div>
 
@@ -89,7 +105,7 @@ export default function Home() {
             {MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setMode(opt.value)}
+                onClick={() => handleModeChange(opt.value)}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   mode === opt.value
                     ? "bg-blue-600 text-white"
@@ -97,7 +113,6 @@ export default function Home() {
                 }`}
               >
                 {opt.label}
-                <span className="ml-1 text-xs opacity-75">{opt.price}</span>
               </button>
             ))}
           </div>
@@ -116,16 +131,16 @@ export default function Home() {
           <div className="space-y-6">
             {/* Image Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ImagePreview src={originalImage} label="Original" />
+              <ImagePreview src={originalImage} label="Оригінал" />
               {processedImage ? (
-                <ImagePreview src={processedImage} label="Processed" />
+                <ImagePreview src={processedImage} label="Результат" />
               ) : (
                 <div className="flex items-center justify-center border border-gray-200 rounded-xl bg-white min-h-[300px]">
                   {isProcessing ? (
                     <ProcessingStatus mode={mode} />
                   ) : (
                     <p className="text-gray-400">
-                      Click &quot;Process&quot; to see result
+                      Натисніть &quot;Обробити&quot; щоб побачити результат
                     </p>
                   )}
                 </div>
@@ -145,7 +160,7 @@ export default function Home() {
                 onClick={handleReset}
                 className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                Upload New Image
+                Нове зображення
               </button>
 
               {!processedImage && !isProcessing && (
@@ -153,7 +168,7 @@ export default function Home() {
                   onClick={handleProcess}
                   className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                 >
-                  Process Image
+                  Обробити
                 </button>
               )}
 

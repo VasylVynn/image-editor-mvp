@@ -76,14 +76,14 @@ export default function ImageUploader({
         </svg>
         <div>
           <p className="text-lg font-medium text-gray-700">
-            Drop your product image here
+            Перетягніть фото товару сюди
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            PNG, JPG, or WebP up to 10MB
+            PNG, JPG або WebP до 10МБ
           </p>
         </div>
         <label className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
-          Browse files
+          Вибрати файл
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"

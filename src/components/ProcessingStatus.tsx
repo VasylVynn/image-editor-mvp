@@ -22,18 +22,16 @@ export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
       <div className="text-center">
         <p className="text-gray-700 font-medium">
           {mode.startsWith("openai")
-            ? "Processing with OpenAI..."
+            ? "Обробка через OpenAI..."
             : mode === "replicate"
-            ? "Processing with Replicate..."
-            : mode === "fal"
-            ? "Processing with Fal.ai..."
-            : "Removing background & centering..."}
+            ? "Обробка через Replicate..."
+            : "Видалення фону та центрування..."}
         </p>
         <p className="text-sm text-gray-500 mt-1">
-          {elapsed}s elapsed
+          {elapsed} сек
           {elapsed > 10 && mode === "local" && (
             <span className="block text-xs mt-1">
-              First run may take longer (downloading AI model)
+              Перший запуск може бути довшим (завантаження AI моделі)
             </span>
           )}
         </p>
