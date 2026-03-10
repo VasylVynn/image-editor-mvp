@@ -6,8 +6,20 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export type OpenAIModel = "gpt-image-1-mini" | "gpt-image-1";
+
+const PROMPT =
+  "This is a product photo. Remove the background and replace it with a plain solid uniform light gray (#E5E5E5). " +
+  "CRITICAL: Do NOT redraw, recreate, or regenerate the product. The product must be a pixel-perfect copy of the original. " +
+  "Do NOT change any colors, textures, patterns, prints, graphics, text, stitching, folds, wrinkles, shadows, or any visual detail on the product. " +
+  "Do NOT reposition, rotate, resize, or rearrange any part of the product or its elements relative to each other. " +
+  "Do NOT smooth, sharpen, enhance, or clean up the product in any way. " +
+  "Keep the exact same angle, perspective, and layout of the product. " +
+  "Only the background changes. Everything else stays identical.";
+
 export async function processImageWithOpenAI(
-  inputBuffer: Buffer
+  inputBuffer: Buffer,
+  model: OpenAIModel = "gpt-image-1-mini"
 ): Promise<Buffer> {
   // Convert to PNG (OpenAI requires PNG for edit endpoint)
   const pngBuffer = await sharp(inputBuffer).png().toBuffer();
@@ -17,15 +29,9 @@ export async function processImageWithOpenAI(
   });
 
   const response = await openai.images.edit({
-    model: "gpt-image-1-mini",
+    model,
     image: file,
-    prompt:
-      "Replace ONLY the background of this image with a plain, solid, uniform light gray color (#E5E5E5). " +
-      "The product in the image must remain COMPLETELY UNCHANGED - preserve every single detail, texture, color, shadow, reflection, stitching, label, and pixel of the product exactly as it appears in the original photo. " +
-      "Do NOT alter, enhance, smooth, sharpen, recolor, or modify the product in any way. " +
-      "Do NOT remove any part of the product such as tags, laces, straps, handles, or small details. " +
-      "Center the product in the frame. " +
-      "The final image should look like the exact same product was photographed on a plain gray studio backdrop.",
+    prompt: PROMPT,
     size: "1024x1024",
     quality: "high",
   });

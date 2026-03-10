@@ -6,7 +6,7 @@ import ImagePreview from "@/components/ImagePreview";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import DownloadButton from "@/components/DownloadButton";
 
-type ProcessingMode = "local" | "openai";
+type ProcessingMode = "local" | "openai-mini" | "openai-full";
 
 export default function Home() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -88,19 +88,30 @@ export default function Home() {
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              Local Processing
+              Local
               <span className="ml-1 text-xs opacity-75">Free</span>
             </button>
             <button
-              onClick={() => setMode("openai")}
+              onClick={() => setMode("openai-mini")}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "openai"
+                mode === "openai-mini"
                   ? "bg-blue-600 text-white"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              OpenAI Enhanced
+              OpenAI Mini
               <span className="ml-1 text-xs opacity-75">~$0.04</span>
+            </button>
+            <button
+              onClick={() => setMode("openai-full")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                mode === "openai-full"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              OpenAI Full
+              <span className="ml-1 text-xs opacity-75">~$0.10</span>
             </button>
           </div>
         </div>

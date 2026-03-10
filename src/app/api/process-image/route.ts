@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processImage } from "@/lib/image-processor";
-import { processImageWithOpenAI } from "@/lib/openai-processor";
+import { processImageWithOpenAI, type OpenAIModel } from "@/lib/openai-processor";
 
 export const maxDuration = 60;
 
@@ -44,14 +44,15 @@ export async function POST(request: NextRequest) {
 
     let resultBuffer: Buffer;
 
-    if (mode === "openai") {
+    if (mode === "openai-mini" || mode === "openai-full") {
       if (!process.env.OPENAI_API_KEY) {
         return NextResponse.json(
           { error: "OpenAI API key not configured. Add OPENAI_API_KEY to .env.local" },
           { status: 500 }
         );
       }
-      resultBuffer = await processImageWithOpenAI(buffer);
+      const model: OpenAIModel = mode === "openai-full" ? "gpt-image-1" : "gpt-image-1-mini";
+      resultBuffer = await processImageWithOpenAI(buffer, model);
     } else {
       resultBuffer = await processImage(buffer);
     }

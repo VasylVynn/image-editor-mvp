@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 interface ProcessingStatusProps {
-  mode: "local" | "openai";
+  mode: "local" | "openai-mini" | "openai-full";
 }
 
 export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
@@ -21,7 +21,7 @@ export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
       <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
       <div className="text-center">
         <p className="text-gray-700 font-medium">
-          {mode === "openai"
+          {mode.startsWith("openai")
             ? "Processing with OpenAI..."
             : "Removing background & centering..."}
         </p>
