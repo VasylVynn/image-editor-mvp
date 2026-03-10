@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { toFile } from "openai";
-import { processImage as localProcess } from "./image-processor";
+import sharp from "sharp";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -9,12 +9,10 @@ const openai = new OpenAI({
 export async function processImageWithOpenAI(
   inputBuffer: Buffer
 ): Promise<Buffer> {
-  // Step 1: Use local processing for reliable bg removal + centering
-  const localResult = await localProcess(inputBuffer);
+  // Convert to PNG (OpenAI requires PNG for edit endpoint)
+  const pngBuffer = await sharp(inputBuffer).png().toBuffer();
 
-  // Step 2: Send the clean result to OpenAI for enhancement
-  // (add natural shadows, improve lighting, professional product photo look)
-  const file = await toFile(new Uint8Array(localResult), "product.png", {
+  const file = await toFile(new Uint8Array(pngBuffer), "product.png", {
     type: "image/png",
   });
 
@@ -22,7 +20,12 @@ export async function processImageWithOpenAI(
     model: "gpt-image-1-mini",
     image: file,
     prompt:
-      "This is a product photo on a gray background. Add a subtle, natural drop shadow beneath the product to make it look professionally photographed. Keep the product EXACTLY as it is - do not change the product's colors, shape, texture, or any details whatsoever. Only add a soft shadow on the gray background beneath the product. The background should remain a clean, plain gray (#E5E5E5).",
+      "Replace ONLY the background of this image with a plain, solid, uniform light gray color (#E5E5E5). " +
+      "The product in the image must remain COMPLETELY UNCHANGED - preserve every single detail, texture, color, shadow, reflection, stitching, label, and pixel of the product exactly as it appears in the original photo. " +
+      "Do NOT alter, enhance, smooth, sharpen, recolor, or modify the product in any way. " +
+      "Do NOT remove any part of the product such as tags, laces, straps, handles, or small details. " +
+      "Center the product in the frame. " +
+      "The final image should look like the exact same product was photographed on a plain gray studio backdrop.",
     size: "1024x1024",
     quality: "high",
   });
