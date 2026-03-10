@@ -23,6 +23,10 @@ export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
         <p className="text-gray-700 font-medium">
           {mode.startsWith("openai")
             ? "Processing with OpenAI..."
+            : mode === "replicate"
+            ? "Processing with Replicate..."
+            : mode === "fal"
+            ? "Processing with Fal.ai..."
             : "Removing background & centering..."}
         </p>
         <p className="text-sm text-gray-500 mt-1">

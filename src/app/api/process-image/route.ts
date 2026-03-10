@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processImage } from "@/lib/image-processor";
-import { processImageWithOpenAI, type OpenAIModel } from "@/lib/openai-processor";
+import { processImageWithOpenAI } from "@/lib/openai-processor";
+import { processImageWithReplicate } from "@/lib/replicate-processor";
 
 export const maxDuration = 60;
 
@@ -44,20 +45,22 @@ export async function POST(request: NextRequest) {
 
     let resultBuffer: Buffer;
 
-    if (mode.startsWith("openai")) {
+    if (mode === "replicate") {
+      if (!process.env.REPLICATE_API_TOKEN) {
+        return NextResponse.json(
+          { error: "Replicate API token not configured. Add REPLICATE_API_TOKEN to .env.local" },
+          { status: 500 }
+        );
+      }
+      resultBuffer = await processImageWithReplicate(buffer);
+    } else if (mode === "openai-1.5") {
       if (!process.env.OPENAI_API_KEY) {
         return NextResponse.json(
           { error: "OpenAI API key not configured. Add OPENAI_API_KEY to .env.local" },
           { status: 500 }
         );
       }
-      const modelMap: Record<string, OpenAIModel> = {
-        "openai-mini": "gpt-image-1-mini",
-        "openai-1.5": "gpt-image-1.5",
-        "openai-full": "gpt-image-1",
-      };
-      const model = modelMap[mode] || "gpt-image-1-mini";
-      resultBuffer = await processImageWithOpenAI(buffer, model);
+      resultBuffer = await processImageWithOpenAI(buffer, "gpt-image-1.5");
     } else {
       resultBuffer = await processImage(buffer);
     }

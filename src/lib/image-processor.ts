@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { removeBackground as removeBg } from "@imgly/background-removal-node";
 
 const TARGET_SIZE = 1024;
-const PRODUCT_FILL_RATIO = 0.8; // Product fills 80% of canvas
+const PRODUCT_FILL_RATIO = 0.9; // Product fills 90% of canvas
 
 export async function removeBackground(
   inputBuffer: Buffer
@@ -64,17 +64,16 @@ export async function centerProduct(
 
 export async function featherEdges(
   transparentBuffer: Buffer,
-  radius: number = 2
+  blurRadius: number = 4
 ): Promise<Buffer> {
-  // Extract alpha channel, blur it slightly, then recombine
-  // This softens the hard cutout edges for a natural look
-  const image = sharp(transparentBuffer).ensureAlpha();
-  const { width, height } = await image.metadata();
+  // Soften hard cutout edges by blurring the alpha channel
+  // Higher blur = softer, more natural edge transition
+  const { width, height } = await sharp(transparentBuffer).ensureAlpha().metadata();
 
-  // Extract alpha channel and blur it
+  // Extract alpha channel and blur it for soft edges
   const alpha = await sharp(transparentBuffer)
     .extractChannel(3)
-    .blur(radius)
+    .blur(blurRadius)
     .toBuffer();
 
   // Extract RGB channels (without alpha)
@@ -82,7 +81,7 @@ export async function featherEdges(
     .removeAlpha()
     .toBuffer();
 
-  // Recombine RGB with the blurred alpha
+  // Recombine RGB with the softened alpha
   return sharp(rgb)
     .joinChannel(alpha)
     .resize(width, height)

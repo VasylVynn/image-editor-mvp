@@ -6,7 +6,13 @@ import ImagePreview from "@/components/ImagePreview";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import DownloadButton from "@/components/DownloadButton";
 
-type ProcessingMode = "local" | "openai-mini" | "openai-1.5" | "openai-full";
+type ProcessingMode = "local" | "replicate" | "openai-1.5";
+
+const MODE_OPTIONS: { value: ProcessingMode; label: string; price: string }[] = [
+  { value: "local", label: "Local", price: "Free" },
+  { value: "replicate", label: "Replicate", price: "~$0.02" },
+  { value: "openai-1.5", label: "OpenAI 1.5", price: "~$0.13" },
+];
 
 export default function Home() {
   const [originalImage, setOriginalImage] = useState<string | null>(null);
@@ -79,51 +85,21 @@ export default function Home() {
 
         {/* Mode Toggle */}
         <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-            <button
-              onClick={() => setMode("local")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "local"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Local
-              <span className="ml-1 text-xs opacity-75">Free</span>
-            </button>
-            <button
-              onClick={() => setMode("openai-mini")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "openai-mini"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              OpenAI Mini
-              <span className="ml-1 text-xs opacity-75">~$0.04</span>
-            </button>
-            <button
-              onClick={() => setMode("openai-1.5")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "openai-1.5"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              OpenAI 1.5
-              <span className="ml-1 text-xs opacity-75">~$0.13</span>
-            </button>
-            <button
-              onClick={() => setMode("openai-full")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                mode === "openai-full"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              OpenAI Full
-              <span className="ml-1 text-xs opacity-75">~$0.17</span>
-            </button>
+          <div className="inline-flex flex-wrap justify-center bg-white rounded-lg border border-gray-200 p-1 shadow-sm gap-0.5">
+            {MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setMode(opt.value)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  mode === opt.value
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {opt.label}
+                <span className="ml-1 text-xs opacity-75">{opt.price}</span>
+              </button>
+            ))}
           </div>
         </div>
 
