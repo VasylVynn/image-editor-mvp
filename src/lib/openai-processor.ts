@@ -6,16 +6,17 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export type OpenAIModel = "gpt-image-1-mini" | "gpt-image-1";
+export type OpenAIModel = "gpt-image-1-mini" | "gpt-image-1" | "gpt-image-1.5";
 
 const PROMPT =
-  "This is a product photo. Remove the background and replace it with a plain solid uniform light gray (#E5E5E5). " +
-  "CRITICAL: Do NOT redraw, recreate, or regenerate the product. The product must be a pixel-perfect copy of the original. " +
-  "Do NOT change any colors, textures, patterns, prints, graphics, text, stitching, folds, wrinkles, shadows, or any visual detail on the product. " +
-  "Do NOT reposition, rotate, resize, or rearrange any part of the product or its elements relative to each other. " +
-  "Do NOT smooth, sharpen, enhance, or clean up the product in any way. " +
-  "Keep the exact same angle, perspective, and layout of the product. " +
-  "Only the background changes. Everything else stays identical.";
+  "You are a background removal tool. Your ONLY job is to erase the background and fill it with flat solid gray color #E5E5E5. " +
+  "ABSOLUTE RULES - violating any of these is a failure:\n" +
+  "1. The product pixels must be IDENTICAL to the input - copy them exactly, do not regenerate or redraw them.\n" +
+  "2. Every printed image, graphic, logo, text, pattern, and artwork ON the product must be preserved EXACTLY as-is, pixel for pixel.\n" +
+  "3. The product position, angle, scale, and arrangement of all items must remain EXACTLY the same as the input.\n" +
+  "4. Do NOT change colors, textures, folds, wrinkles, shadows on the product, or any visual detail.\n" +
+  "5. Do NOT rearrange, separate, lift, or reposition any items - keep the exact same flat-lay or arrangement.\n" +
+  "6. ONLY replace background pixels with solid gray. Nothing else changes.";
 
 export async function processImageWithOpenAI(
   inputBuffer: Buffer,

@@ -44,14 +44,19 @@ export async function POST(request: NextRequest) {
 
     let resultBuffer: Buffer;
 
-    if (mode === "openai-mini" || mode === "openai-full") {
+    if (mode.startsWith("openai")) {
       if (!process.env.OPENAI_API_KEY) {
         return NextResponse.json(
           { error: "OpenAI API key not configured. Add OPENAI_API_KEY to .env.local" },
           { status: 500 }
         );
       }
-      const model: OpenAIModel = mode === "openai-full" ? "gpt-image-1" : "gpt-image-1-mini";
+      const modelMap: Record<string, OpenAIModel> = {
+        "openai-mini": "gpt-image-1-mini",
+        "openai-1.5": "gpt-image-1.5",
+        "openai-full": "gpt-image-1",
+      };
+      const model = modelMap[mode] || "gpt-image-1-mini";
       resultBuffer = await processImageWithOpenAI(buffer, model);
     } else {
       resultBuffer = await processImage(buffer);

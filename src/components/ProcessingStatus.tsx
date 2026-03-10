@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 interface ProcessingStatusProps {
-  mode: "local" | "openai-mini" | "openai-full";
+  mode: string;
 }
 
 export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
