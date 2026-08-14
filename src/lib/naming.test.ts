@@ -15,7 +15,7 @@ describe("slugify", () => {
   });
 
   it("strips curly apostrophe", () => {
-    expect(slugify("м'яч")).toBe("miach");
+    expect(slugify("м’яч")).toBe("miach");
   });
 });
 
