@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     const presetId = (formData.get("presetId") as string) || "default";
     const analyze = (formData.get("analyze") as string) !== "false";
 
-    const preset = getPreset(presetId);
+    const preset = await getPreset(presetId);
 
     let mainImage: ImageInput;
     if (file) {

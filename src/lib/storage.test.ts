@@ -3,9 +3,18 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { saveResult } from "./storage";
-import { getPreset } from "./presets";
+import { DEFAULT_PRESET_PROMPT, type Preset } from "./preset-schema";
 
-const preset = getPreset("default");
+const preset: Preset = {
+  id: "default",
+  name: "Основний магазин",
+  width: 940,
+  height: 1300,
+  background: "#E9E9E9",
+  aspectRatio: "3:4",
+  outputDir: "~/CatalogPhotos/default",
+  prompt: DEFAULT_PRESET_PROMPT,
+};
 const PNG_BASE64 = Buffer.from("fake-png-bytes").toString("base64");
 
 let dir: string;

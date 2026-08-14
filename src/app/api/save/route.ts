@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const preset = getPreset(presetId || "default");
+    const preset = await getPreset(presetId || "default");
     const filenameBase = resolveFilename({ sku, productName });
     const imageBase64 = image.startsWith("data:")
       ? image.slice(image.indexOf(",") + 1)

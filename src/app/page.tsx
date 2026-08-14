@@ -6,7 +6,8 @@ import ProductUrlPanel from "@/components/ProductUrlPanel";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CompareView from "@/components/CompareView";
 import SaveForm from "@/components/SaveForm";
-import presetsConfig from "@/config/presets.json";
+import Link from "next/link";
+import type { Preset } from "@/lib/preset-schema";
 
 type Stage = "idle" | "processing" | "done";
 type Mode = "file" | "url";
@@ -38,6 +39,7 @@ export default function Home() {
   const [refUrl, setRefUrl] = useState<string | null>(null);
 
   const [note, setNote] = useState("");
+  const [presets, setPresets] = useState<Preset[]>([]);
   const [presetId, setPresetId] = useState("default");
   const [analyze, setAnalyze] = useState(true);
   const [stage, setStage] = useState<Stage>("idle");
@@ -70,6 +72,26 @@ export default function Home() {
   // Cancel any in-flight request on unmount so it can't resolve into a stale UI.
   useEffect(() => {
     return () => abortControllerRef.current?.abort();
+  }, []);
+
+  // Presets are editable at runtime (/presets page), so load them via the API
+  // instead of a build-time import. Falls back to keeping the current id if
+  // it still exists, else the first preset.
+  useEffect(() => {
+    fetch("/api/presets")
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Не вдалося завантажити пресети");
+        const loaded: Preset[] = body.presets;
+        setPresets(loaded);
+        setPresetId((current) =>
+          loaded.some((p) => p.id === current) ? current : loaded[0]?.id ?? current
+        );
+      })
+      .catch(() => {
+        // Non-fatal: the select stays empty; processing still works with the
+        // server-side default preset id.
+      });
   }, []);
 
   // Keep object URLs for the compare view in sync with the selected files.
@@ -314,13 +336,20 @@ export default function Home() {
                 disabled={stage === "processing"}
                 className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-900"
               >
-                {presetsConfig.presets.map((preset) => (
+                {presets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
                     {preset.name}
                   </option>
                 ))}
               </select>
             </label>
+
+            <Link
+              href="/presets"
+              className="text-sm text-blue-600 hover:underline whitespace-nowrap"
+            >
+              ⚙ Пресети
+            </Link>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
