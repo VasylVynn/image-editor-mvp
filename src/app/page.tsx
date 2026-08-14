@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import UploadPanel from "@/components/UploadPanel";
 import ProcessingStatus from "@/components/ProcessingStatus";
+import CompareView from "@/components/CompareView";
+import SaveForm from "@/components/SaveForm";
 import presetsConfig from "@/config/presets.json";
 
 type Stage = "idle" | "processing" | "done";
@@ -23,6 +25,31 @@ export default function Home() {
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savedPath, setSavedPath] = useState<string | null>(null);
+
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
+
+  // Keep object URLs for the compare view in sync with the selected files.
+  useEffect(() => {
+    if (!mainFile) {
+      setOriginalUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(mainFile);
+    setOriginalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mainFile]);
+
+  useEffect(() => {
+    if (!refFile) {
+      setReferenceUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(refFile);
+    setReferenceUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [refFile]);
 
   const handleImagesChange = useCallback((main: File | null, reference: File | null) => {
     setMainFile(main);
@@ -34,6 +61,7 @@ export default function Home() {
 
     setStage("processing");
     setError(null);
+    setSavedPath(null);
 
     try {
       const formData = new FormData();
@@ -70,7 +98,10 @@ export default function Home() {
     setStage("idle");
     setResult(null);
     setError(null);
+    setSavedPath(null);
   }, []);
+
+  const defaultProductName = mainFile ? mainFile.name.replace(/\.[^.]+$/, "") : "";
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -147,45 +178,77 @@ export default function Home() {
             </div>
           )}
 
-          {/* Result (temporary raw preview; CompareView replaces this) */}
-          {result && (
-            <div className="space-y-3">
+          {/* Result: compare view + save/regenerate actions */}
+          {stage === "done" && result && originalUrl && (
+            <div className="space-y-4">
               {result.analysisFailed && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm text-center">
                   Аналіз не спрацював, використано базовий промпт
                 </div>
               )}
-              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={result.image}
-                  alt="Результат"
-                  className="max-w-full max-h-[500px] object-contain mx-auto"
+
+              <CompareView
+                originalUrl={originalUrl}
+                referenceUrl={referenceUrl}
+                resultImage={result.image}
+              />
+
+              <div className="flex flex-col items-center gap-4">
+                {savedPath && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-green-700 text-sm text-center w-full max-w-md">
+                    Збережено: {savedPath}
+                  </div>
+                )}
+
+                <SaveForm
+                  resultImage={result.image}
+                  promptUsed={result.promptUsed}
+                  presetId={presetId}
+                  defaultSku=""
+                  defaultProductName={defaultProductName}
+                  onSaved={setSavedPath}
                 />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleProcess}
+                    className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Перегенерувати
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Нове фото
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex justify-center gap-4">
-            {mainFile && (
-              <button
-                onClick={handleReset}
-                className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Нове фото
-              </button>
-            )}
+          {/* Idle actions */}
+          {stage !== "done" && (
+            <div className="flex justify-center gap-4">
+              {mainFile && (
+                <button
+                  onClick={handleReset}
+                  className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Нове фото
+                </button>
+              )}
 
-            {mainFile && stage !== "processing" && !result && (
-              <button
-                onClick={handleProcess}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Обробити
-              </button>
-            )}
-          </div>
+              {mainFile && stage !== "processing" && (
+                <button
+                  onClick={handleProcess}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Обробити
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
