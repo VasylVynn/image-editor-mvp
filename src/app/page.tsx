@@ -30,6 +30,10 @@ export default function Home() {
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
 
+  // Bumped on reset to force UploadPanel to remount, clearing its internal
+  // file/thumbnail state (it isn't otherwise controlled by the page).
+  const [uploadKey, setUploadKey] = useState(0);
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Cancel any in-flight request on unmount so it can't resolve into a stale UI.
@@ -115,6 +119,7 @@ export default function Home() {
     setResult(null);
     setError(null);
     setSavedPath(null);
+    setUploadKey((k) => k + 1);
   }, []);
 
   const defaultProductName = mainFile ? mainFile.name.replace(/\.[^.]+$/, "") : "";
@@ -134,7 +139,7 @@ export default function Home() {
 
         <div className="space-y-6">
           {/* Upload */}
-          <UploadPanel onImagesChange={handleImagesChange} disabled={stage !== "idle"} />
+          <UploadPanel key={uploadKey} onImagesChange={handleImagesChange} disabled={stage !== "idle"} />
 
           {/* Controls */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-wrap items-center gap-4">
