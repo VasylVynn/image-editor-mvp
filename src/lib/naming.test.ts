@@ -13,6 +13,10 @@ describe("slugify", () => {
   it("collapses punctuation and spaces into single dashes", () => {
     expect(slugify("  Боді — «Ведмедик», 2 шт.  ")).toBe("bodi-vedmedyk-2-sht");
   });
+
+  it("strips curly apostrophe", () => {
+    expect(slugify("м'яч")).toBe("miach");
+  });
 });
 
 describe("resolveFilename", () => {
