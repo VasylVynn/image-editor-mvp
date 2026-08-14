@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface ProductUrlPanelProps {
   onProductLoaded: (product: {
@@ -16,8 +16,23 @@ export default function ProductUrlPanel({ onProductLoaded, disabled }: ProductUr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Defense-in-depth: cancel any in-flight fetch-product request on unmount
+  // (the page also forces a remount via key on reset, which unmounts us —
+  // this ensures the network request itself is cancelled, not just its
+  // result ignored).
+  useEffect(() => {
+    return () => abortControllerRef.current?.abort();
+  }, []);
+
   const handleFetch = async () => {
     if (!url.trim()) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -26,6 +41,7 @@ export default function ProductUrlPanel({ onProductLoaded, disabled }: ProductUr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
+        signal: controller.signal,
       });
 
       const data = await response.json();
@@ -35,6 +51,8 @@ export default function ProductUrlPanel({ onProductLoaded, disabled }: ProductUr
 
       onProductLoaded(data);
     } catch (err) {
+      // Aborted deliberately (unmount/remount) — no UI left to update.
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Щось пішло не так");
     } finally {
       setLoading(false);

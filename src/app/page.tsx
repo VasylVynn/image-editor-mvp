@@ -48,8 +48,11 @@ export default function Home() {
   const [fileOriginalUrl, setFileOriginalUrl] = useState<string | null>(null);
   const [fileReferenceUrl, setFileReferenceUrl] = useState<string | null>(null);
 
-  // Bumped on reset to force UploadPanel to remount, clearing its internal
-  // file/thumbnail state (it isn't otherwise controlled by the page).
+  // Bumped on reset to force UploadPanel/ProductUrlPanel to remount, clearing
+  // their internal state (file/thumbnail selection, URL text, in-flight
+  // fetch) that isn't otherwise controlled by the page. This also aborts any
+  // fetch-product request still in flight when a remount tears it down,
+  // preventing a stale response from repopulating cleared state.
   const [uploadKey, setUploadKey] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -236,7 +239,11 @@ export default function Home() {
             <UploadPanel key={uploadKey} onImagesChange={handleImagesChange} disabled={stage !== "idle"} />
           ) : (
             <div className="space-y-4">
-              <ProductUrlPanel onProductLoaded={handleProductLoaded} disabled={stage !== "idle"} />
+              <ProductUrlPanel
+                key={uploadKey}
+                onProductLoaded={handleProductLoaded}
+                disabled={stage !== "idle"}
+              />
 
               {productTitle && (
                 <p className="text-sm text-gray-600">Товар: {productTitle}</p>
