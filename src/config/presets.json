@@ -1,0 +1,13 @@
+{
+  "presets": [
+    {
+      "id": "default",
+      "name": "Основний магазин",
+      "width": 940,
+      "height": 1300,
+      "background": "#E9E9E9",
+      "aspectRatio": "3:4",
+      "outputDir": "~/CatalogPhotos/default"
+    }
+  ]
+}
