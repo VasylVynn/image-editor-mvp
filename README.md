@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Catalog Image Tool
 
-## Getting Started
+Інструмент для підготовки фото товарів під каталог: завантажуєш фото товару (і опційно референс — манекен, фон, поза) або вставляєш посилання на сторінку товару, інструмент аналізує зображення через Gemini (`gemini-2.5-flash`) і генерує нове каталожне фото потрібного розміру та кольору фону через Gemini (`gemini-3-pro-image-preview`), після чого результат можна порівняти з оригіналом, за потреби перегенерувати з приміткою і зберегти у папку магазину під артикулом.
 
-First, run the development server:
+## Встановлення
+
+```bash
+npm install
+```
+
+Створи `.env.local` у корені проєкту з ключем Gemini API:
+
+```
+GEMINI_API_KEY=your_key_here
+```
+
+Запуск дев-сервера:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Відкрий [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Налаштування магазинів (presets)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Пресети описані в `src/config/presets.json`. Кожен пресет — це один магазин/каталог зі своїми розмірами фото, кольором фону та папкою збереження:
 
-## Learn More
+```json
+{
+  "id": "default",
+  "name": "Основний магазин",
+  "width": 940,
+  "height": 1300,
+  "background": "#E9E9E9",
+  "aspectRatio": "3:4",
+  "outputDir": "~/CatalogPhotos/default"
+}
+```
 
-To learn more about Next.js, take a look at the following resources:
+- `id` — унікальний ідентифікатор пресету, використовується в UI та в API.
+- `name` — назва магазину, яку бачить оператор у випадаючому списку.
+- `width` / `height` — вихідний розмір згенерованого фото в пікселях.
+- `background` — колір фону каталожного фото (hex).
+- `aspectRatio` — співвідношення сторін, передається в промпт генерації.
+- `outputDir` — куди зберігати результат; `~` розгортається в домашню папку користувача.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Щоб додати новий магазин, додай ще один об'єкт у масив `presets` з новим `id` — він одразу з'явиться в UI.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Куди зберігаються файли
 
-## Deploy on Vercel
+Збережені фото лежать у `outputDir` відповідного пресету, названі за артикулом/SKU товару (з дедуплікацією імені при повторному збереженні). Поруч у тій самій папці ведеться `log.jsonl` — по одному JSON-рядку на кожне збереження: час, ім'я файлу, шлях, id пресету, SKU, назва товару та промпт, який використали для генерації.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Вартість
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Одна генерація (аналіз + рендер) коштує приблизно **$0.13–0.16** залежно від складності зображення.
+
+## Безпека: лише для локального, одноосібного використання
+
+`/api/fetch-product` та завантаження зображень за посиланням приймають будь-яку URL з перевіркою лише схеми `http`/`https` — без блокування приватних/loopback/metadata-адрес і без обмеження редиректів. Це прийнятно для локального інструменту, яким користується одна людина, але **перед публічним хостингом обов'язково додай SSRF-захист**: блокування приватних, loopback та metadata IP-адрес, а також обмеження на редиректи.
