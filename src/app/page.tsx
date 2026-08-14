@@ -57,6 +57,16 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Mirrors `result` so async callbacks (the catch below, cancel) can read the
+  // CURRENT value instead of the one captured in their closure — a failed
+  // regenerate must fall back to whatever result is actually on screen right
+  // now, not whatever was there when the request started.
+  const resultRef = useRef<ProcessResult | null>(null);
+  const updateResult = useCallback((value: ProcessResult | null) => {
+    resultRef.current = value;
+    setResult(value);
+  }, []);
+
   // Cancel any in-flight request on unmount so it can't resolve into a stale UI.
   useEffect(() => {
     return () => abortControllerRef.current?.abort();
@@ -155,15 +165,27 @@ export default function Home() {
         throw new Error(data.error || "Помилка обробки");
       }
 
-      setResult(data);
+      updateResult(data);
       setStage("done");
     } catch (err) {
-      // Aborted deliberately (reset/unmount) — the UI has already moved on, don't clobber it.
+      // Aborted deliberately (reset/unmount/cancel) — the abort site (handleCancel,
+      // handleReset) or the superseding request already owns the stage transition,
+      // so this stale rejection must not clobber it.
       if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Щось пішло не так");
-      setStage("idle");
+      // Keep showing the last successful result (if any) instead of hiding it —
+      // a failed regenerate shouldn't throw away an already-paid-for image.
+      setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze]);
+  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze, updateResult]);
+
+  // Cancels an in-flight request and returns to a sane state. The fetch's own
+  // AbortError branch above is a no-op, so this is the sole place that decides
+  // the post-cancel stage — no race with the aborted request's rejection.
+  const handleCancel = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setStage(resultRef.current ? "done" : "idle");
+  }, []);
 
   const handleReset = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -178,11 +200,11 @@ export default function Home() {
     setPresetId("default");
     setAnalyze(true);
     setStage("idle");
-    setResult(null);
+    updateResult(null);
     setError(null);
     setSavedPath(null);
     setUploadKey((k) => k + 1);
-  }, []);
+  }, [updateResult]);
 
   const defaultProductName =
     mode === "url"
@@ -335,8 +357,15 @@ export default function Home() {
 
           {/* Processing */}
           {stage === "processing" && (
-            <div className="flex items-center justify-center border border-gray-200 rounded-xl bg-white min-h-[200px]">
+            <div className="flex flex-col items-center justify-center gap-4 border border-gray-200 rounded-xl bg-white min-h-[200px]">
               <ProcessingStatus />
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Скасувати
+              </button>
             </div>
           )}
 

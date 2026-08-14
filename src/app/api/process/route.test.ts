@@ -91,6 +91,50 @@ describe("POST /api/process", () => {
     expect(body.error).toContain("model down");
   });
 
+  it("maps a 429/RESOURCE_EXHAUSTED generation error to a Ukrainian quota message", async () => {
+    vi.mocked(generateImage).mockRejectedValueOnce(
+      new Error('429 RESOURCE_EXHAUSTED. {"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}')
+    );
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Вичерпано ліміт або кошти Gemini API — поповніть білінг");
+    expect(body.details).toContain("RESOURCE_EXHAUSTED");
+  });
+
+  it("keeps an unrecognized generation error message as passthrough (default case)", async () => {
+    vi.mocked(generateImage).mockRejectedValueOnce(new Error("something unexpected happened"));
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("something unexpected happened");
+    expect(body.details).toBeUndefined();
+  });
+
+  it("maps an auth/API key generation error to a Ukrainian message", async () => {
+    vi.mocked(generateImage).mockRejectedValueOnce(new Error("401 Unauthorized: invalid API key"));
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Проблема з ключем Gemini API — перевірте GEMINI_API_KEY");
+  });
+
+  it("maps a 5xx/network generation error to a Ukrainian unavailable message", async () => {
+    vi.mocked(generateImage).mockRejectedValueOnce(new Error("fetch failed: 503 Service Unavailable"));
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Сервіс Gemini недоступний. Спробуйте ще раз");
+  });
+
+  it("maps a timeout generation error to a Ukrainian message", async () => {
+    vi.mocked(generateImage).mockRejectedValueOnce(new Error("Gemini generation timeout after 120000ms"));
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Перевищено час очікування. Спробуйте ще раз");
+  });
+
   it("accepts imageUrl instead of file", async () => {
     const res = await POST(makeRequest({ imageUrl: "https://cdn.shop.ua/i.jpg" }));
     expect(res.status).toBe(200);

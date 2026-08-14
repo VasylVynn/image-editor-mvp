@@ -15,6 +15,7 @@ export default function UploadPanel({ onImagesChange, disabled }: UploadPanelPro
   const [mainIndex, setMainIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Keep object URLs in sync with the current file list.
@@ -36,13 +37,23 @@ export default function UploadPanel({ onImagesChange, disabled }: UploadPanelPro
 
   const addFiles = useCallback(
     (incoming: FileList | File[]) => {
-      const valid = Array.from(incoming).filter((file) =>
-        ACCEPTED_TYPES.includes(file.type)
-      );
+      const incomingArray = Array.from(incoming);
+      const valid = incomingArray.filter((file) => ACCEPTED_TYPES.includes(file.type));
+      const hasInvalid = valid.length < incomingArray.length;
+      const overflow = files.length + valid.length > MAX_FILES;
+
+      if (hasInvalid) {
+        setErrorMessage("Підтримуються лише PNG, JPG, WebP");
+      } else if (overflow) {
+        setErrorMessage("Можна максимум 2 фото");
+      } else if (valid.length > 0) {
+        setErrorMessage(null);
+      }
+
       if (valid.length === 0) return;
       setFiles((prev) => [...prev, ...valid].slice(0, MAX_FILES));
     },
-    []
+    [files]
   );
 
   const handleDrop = useCallback(
@@ -81,6 +92,7 @@ export default function UploadPanel({ onImagesChange, disabled }: UploadPanelPro
         if (index < prevMain) return prevMain - 1;
         return prevMain;
       });
+      setErrorMessage(null);
     },
     []
   );
@@ -134,6 +146,12 @@ export default function UploadPanel({ onImagesChange, disabled }: UploadPanelPro
             className="hidden"
             disabled={disabled}
           />
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm text-center">
+          {errorMessage}
         </div>
       )}
 

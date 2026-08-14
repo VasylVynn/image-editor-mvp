@@ -14,15 +14,42 @@ export interface FetchDeps {
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_GALLERY = 12;
 const SKU_LABEL = /(артикул|sku|код товару)/i;
+const FETCH_TIMEOUT_MS = 15_000;
+
+// Combines a caller-passed signal (e.g. the incoming request's, aborted when
+// the client disconnects) with an internal ~15s timeout, so a slow/hanging
+// upstream can never keep this request in flight indefinitely.
+function boundedSignal(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
+async function fetchWithTimeout(
+  deps: FetchDeps,
+  url: string,
+  signal?: AbortSignal
+): Promise<Response> {
+  try {
+    return await deps.fetchFn(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (catalog-image-tool)" },
+      signal: boundedSignal(signal),
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      // User-surfaced via route error handlers — Ukrainian.
+      throw new Error("Час очікування вичерпано. Спробуйте ще раз");
+    }
+    throw err;
+  }
+}
 
 export async function fetchProductPage(
   url: string,
-  deps: FetchDeps = { fetchFn: fetch }
+  deps: FetchDeps = { fetchFn: fetch },
+  signal?: AbortSignal
 ): Promise<ProductPage> {
   const base = new URL(url); // throws on invalid URL
-  const response = await deps.fetchFn(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (catalog-image-tool)" },
-  });
+  const response = await fetchWithTimeout(deps, url, signal);
   if (!response.ok) throw new Error(`Сторінка недоступна: HTTP ${response.status}`);
   const $ = cheerio.load(await response.text());
 
@@ -67,11 +94,10 @@ export async function fetchProductPage(
 
 export async function downloadImage(
   url: string,
-  deps: FetchDeps = { fetchFn: fetch }
+  deps: FetchDeps = { fetchFn: fetch },
+  signal?: AbortSignal
 ): Promise<ImageInput> {
-  const response = await deps.fetchFn(url, {
-    headers: { "User-Agent": "Mozilla/5.0 (catalog-image-tool)" },
-  });
+  const response = await fetchWithTimeout(deps, url, signal);
   if (!response.ok) throw new Error(`Не вдалося завантажити фото: HTTP ${response.status}`);
   const mimeType = response.headers.get("content-type")?.split(";")[0] ?? "";
   // User-surfaced via route error handlers — Ukrainian.

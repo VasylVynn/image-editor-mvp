@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     if (!url || !/^https?:\/\//.test(url)) {
       return NextResponse.json({ error: "Вкажіть коректне посилання (http/https)" }, { status: 400 });
     }
-    const page = await fetchProductPage(url);
+    const page = await fetchProductPage(url, undefined, request.signal);
     if (page.images.length === 0) {
       return NextResponse.json(
         { error: "Не знайшли фото на сторінці. Спробуйте зберегти фото вручну." },

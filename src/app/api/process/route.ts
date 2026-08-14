@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { analyzeImages, formatAnalysis } from "@/lib/analyzer";
 import { generateImage } from "@/lib/generator";
 import { buildPrompt } from "@/lib/prompt-builder";
-import { getPreset } from "@/lib/presets";
+import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
 import type { ImageInput } from "@/lib/types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const GENERATION_TIMEOUT_MS = 120_000;
 
 async function toImageInput(file: File): Promise<ImageInput> {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -30,6 +31,86 @@ function validateFile(file: File, label: string): NextResponse | null {
   return null;
 }
 
+// Races a promise against a timeout so a hanging Gemini call can't keep the
+// request open forever. The underlying promise isn't cancelled (the SDK call
+// takes no signal) — its result is just discarded once the timeout wins.
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      AbortSignal.timeout(ms).addEventListener("abort", () => reject(new Error(timeoutMessage)), {
+        once: true,
+      });
+    }),
+  ]);
+}
+
+interface GenerationOutput {
+  prompt: string;
+  result: ImageInput;
+  analysis: string | null;
+  analysisFailed: boolean;
+}
+
+async function runAnalysisAndGeneration(input: {
+  mainImage: ImageInput;
+  referenceImage?: ImageInput;
+  analyze: boolean;
+  preset: Preset;
+  note?: string;
+}): Promise<GenerationOutput> {
+  let analysis: string | null = null;
+  let analysisFailed = false;
+  if (input.analyze) {
+    try {
+      const images = input.referenceImage ? [input.mainImage, input.referenceImage] : [input.mainImage];
+      analysis = formatAnalysis(await analyzeImages(images));
+    } catch (err) {
+      console.error("Analysis failed, falling back to base prompt:", err);
+      analysisFailed = true;
+    }
+  }
+
+  const prompt = buildPrompt({ preset: input.preset, analysis: analysis ?? undefined, note: input.note });
+  const result = await generateImage({
+    mainImage: input.mainImage,
+    referenceImage: input.referenceImage,
+    prompt,
+    aspectRatio: input.preset.aspectRatio,
+  });
+
+  return { prompt, result, analysis, analysisFailed };
+}
+
+// Maps raw Gemini SDK error text to an operator-facing Ukrainian message.
+// Falls through to the original message when nothing matches, so unexpected
+// errors are never hidden — only the well-known provider failure classes are
+// translated.
+function mapGenerationError(rawMessage: string): string {
+  const msg = rawMessage.toLowerCase();
+
+  if (/\b401\b/.test(msg) || /\b403\b/.test(msg) || /api[ _]?key/.test(msg)) {
+    return "Проблема з ключем Gemini API — перевірте GEMINI_API_KEY";
+  }
+  if (/\b429\b/.test(msg) || /resource_exhausted/.test(msg) || /quota/.test(msg)) {
+    return "Вичерпано ліміт або кошти Gemini API — поповніть білінг";
+  }
+  if (
+    /\b5\d\d\b/.test(msg) ||
+    /fetch failed/.test(msg) ||
+    /network/.test(msg) ||
+    /econnrefused/.test(msg) ||
+    /enotfound/.test(msg) ||
+    /unavailable/.test(msg)
+  ) {
+    return "Сервіс Gemini недоступний. Спробуйте ще раз";
+  }
+  if (/timeout/.test(msg) || /\babort/.test(msg)) {
+    return "Перевищено час очікування. Спробуйте ще раз";
+  }
+  return rawMessage;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -49,7 +130,7 @@ export async function POST(request: Request) {
       if (fileError) return fileError;
       mainImage = await toImageInput(file);
     } else if (imageUrl) {
-      mainImage = await downloadImage(imageUrl);
+      mainImage = await downloadImage(imageUrl, undefined, request.signal);
     } else {
       return NextResponse.json({ error: "Не надано зображення" }, { status: 400 });
     }
@@ -60,34 +141,31 @@ export async function POST(request: Request) {
       if (refError) return refError;
       referenceImage = await toImageInput(referenceFile);
     } else if (referenceUrl) {
-      referenceImage = await downloadImage(referenceUrl);
+      referenceImage = await downloadImage(referenceUrl, undefined, request.signal);
     }
 
-    let analysis: string | null = null;
-    let analysisFailed = false;
-    if (analyze) {
-      try {
-        const images = referenceImage ? [mainImage, referenceImage] : [mainImage];
-        analysis = formatAnalysis(await analyzeImages(images));
-      } catch (err) {
-        console.error("Analysis failed, falling back to base prompt:", err);
-        analysisFailed = true;
-      }
+    let generation: GenerationOutput;
+    try {
+      generation = await withTimeout(
+        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note }),
+        GENERATION_TIMEOUT_MS,
+        `Gemini generation timeout after ${GENERATION_TIMEOUT_MS}ms`
+      );
+    } catch (err) {
+      console.error("Generation error:", err);
+      const rawMessage = err instanceof Error ? err.message : "Помилка генерації";
+      const message = mapGenerationError(rawMessage);
+      return NextResponse.json(
+        { error: message, details: message !== rawMessage ? rawMessage : undefined },
+        { status: 500 }
+      );
     }
-
-    const prompt = buildPrompt({ preset, analysis: analysis ?? undefined, note });
-    const result = await generateImage({
-      mainImage,
-      referenceImage,
-      prompt,
-      aspectRatio: preset.aspectRatio,
-    });
 
     return NextResponse.json({
-      image: `data:${result.mimeType};base64,${result.data}`,
-      promptUsed: prompt,
-      analysis,
-      analysisFailed,
+      image: `data:${generation.result.mimeType};base64,${generation.result.data}`,
+      promptUsed: generation.prompt,
+      analysis: generation.analysis,
+      analysisFailed: generation.analysisFailed,
     });
   } catch (error) {
     console.error("Processing error:", error);
