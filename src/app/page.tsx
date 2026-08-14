@@ -312,7 +312,7 @@ export default function Home() {
                 value={presetId}
                 onChange={(e) => setPresetId(e.target.value)}
                 disabled={stage === "processing"}
-                className="border border-gray-300 rounded-md px-2 py-1 text-sm"
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-900"
               >
                 {presetsConfig.presets.map((preset) => (
                   <option key={preset.id} value={preset.id}>
@@ -332,14 +332,16 @@ export default function Home() {
               Аналіз деталей
             </label>
 
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              disabled={stage === "processing"}
-              placeholder="Примітка (необовʼязково): напр. прибери вішак"
-              className="flex-1 min-w-[240px] border border-gray-300 rounded-md px-3 py-1.5 text-sm"
-            />
+            {stage !== "done" && (
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                disabled={stage === "processing"}
+                placeholder="Примітка для моделі (необовʼязково): напр. прибери вішак"
+                className="flex-1 min-w-[240px] border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900 placeholder-gray-400"
+              />
+            )}
           </div>
 
           {/* Error */}
@@ -400,7 +402,14 @@ export default function Home() {
                   onSaved={setSavedPath}
                 />
 
-                <div className="flex gap-4">
+                <div className="flex flex-wrap justify-center items-stretch gap-3 w-full max-w-3xl">
+                  <input
+                    type="text"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Що виправити при перегенерації: напр. прибери вішак"
+                    className="flex-1 min-w-[260px] border border-gray-300 rounded-lg px-3 py-3 text-sm bg-white text-gray-900 placeholder-gray-400"
+                  />
                   <button
                     onClick={handleProcess}
                     className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"

@@ -76,7 +76,7 @@ export default function ProductUrlPanel({ onProductLoaded, disabled }: ProductUr
             }}
             disabled={disabled || loading}
             placeholder="https://shop.ua/p/тovar"
-            className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+            className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900 placeholder-gray-400"
           />
           <button
             type="button"

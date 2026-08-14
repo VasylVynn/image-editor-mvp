@@ -2,7 +2,9 @@ import { Type } from "@google/genai";
 import { getGenAI, type GenAIDeps } from "./genai-client";
 import type { AnalysisResult, ImageInput } from "./types";
 
-export const ANALYZER_MODEL = "gemini-2.5-flash";
+// "-latest" alias: gemini-2.5-flash returned 404 for new API accounts (verified live);
+// the alias tracks the current stable flash model and survives such deprecations.
+export const ANALYZER_MODEL = "gemini-flash-latest";
 
 const ANALYSIS_SCHEMA = {
   type: Type.OBJECT,

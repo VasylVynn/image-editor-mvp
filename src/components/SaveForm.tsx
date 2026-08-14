@@ -71,7 +71,7 @@ export default function SaveForm({
           value={sku}
           onChange={(e) => setSku(e.target.value)}
           disabled={saving}
-          className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+          className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900"
         />
       </label>
       <label className="block text-sm text-gray-700">
@@ -81,7 +81,7 @@ export default function SaveForm({
           value={productName}
           onChange={(e) => setProductName(e.target.value)}
           disabled={saving}
-          className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+          className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900"
         />
       </label>
       <p className="text-xs text-gray-500">Ім&apos;я файлу = артикул, якщо вказано</p>
