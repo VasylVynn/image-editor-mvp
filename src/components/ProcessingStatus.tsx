@@ -1,41 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-interface ProcessingStatusProps {
-  mode: string;
-}
-
-export default function ProcessingStatus({ mode }: ProcessingStatusProps) {
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
+export default function ProcessingStatus() {
   return (
     <div className="flex flex-col items-center gap-4 py-8">
       <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-      <div className="text-center">
-        <p className="text-gray-700 font-medium">
-          {mode.startsWith("openai")
-            ? "Обробка через OpenAI..."
-            : mode === "replicate"
-            ? "Обробка через Replicate..."
-            : "Видалення фону та центрування..."}
-        </p>
-        <p className="text-sm text-gray-500 mt-1">
-          {elapsed} сек
-          {elapsed > 10 && mode === "local" && (
-            <span className="block text-xs mt-1">
-              Перший запуск може бути довшим (завантаження AI моделі)
-            </span>
-          )}
-        </p>
-      </div>
+      <p className="text-gray-700 font-medium">
+        Обробляємо фото… (10–30 секунд)
+      </p>
     </div>
   );
 }
