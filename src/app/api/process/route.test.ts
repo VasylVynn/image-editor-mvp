@@ -11,6 +11,9 @@ vi.mock("@/lib/analyzer", () => ({
   })),
   formatAnalysis: vi.fn(() => "FORMATTED ANALYSIS"),
 }));
+vi.mock("@/lib/product-fetcher", () => ({
+  downloadImage: vi.fn(async () => ({ data: "ZnJvbVVybA==", mimeType: "image/jpeg" })),
+}));
 
 import { POST } from "./route";
 import { generateImage } from "@/lib/generator";
@@ -86,5 +89,17 @@ describe("POST /api/process", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toContain("model down");
+  });
+
+  it("accepts imageUrl instead of file", async () => {
+    const res = await POST(makeRequest({ imageUrl: "https://cdn.shop.ua/i.jpg" }));
+    expect(res.status).toBe(200);
+  });
+
+  it("file wins over imageUrl when both present", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), imageUrl: "https://x/y.jpg" }));
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.mainImage.data).not.toBe("ZnJvbVVybA==");
   });
 });
