@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import UploadPanel from "@/components/UploadPanel";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import CompareView from "@/components/CompareView";
@@ -29,6 +29,13 @@ export default function Home() {
 
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cancel any in-flight request on unmount so it can't resolve into a stale UI.
+  useEffect(() => {
+    return () => abortControllerRef.current?.abort();
+  }, []);
 
   // Keep object URLs for the compare view in sync with the selected files.
   useEffect(() => {
@@ -59,6 +66,11 @@ export default function Home() {
   const handleProcess = useCallback(async () => {
     if (!mainFile) return;
 
+    // Cancel any request still in flight (e.g. a fast regenerate click) before starting a new one.
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setStage("processing");
     setError(null);
     setSavedPath(null);
@@ -74,6 +86,7 @@ export default function Home() {
       const response = await fetch("/api/process", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       const data = await response.json();
@@ -84,12 +97,15 @@ export default function Home() {
       setResult(data);
       setStage("done");
     } catch (err) {
+      // Aborted deliberately (reset/unmount) — the UI has already moved on, don't clobber it.
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Щось пішло не так");
       setStage("idle");
     }
   }, [mainFile, refFile, note, presetId, analyze]);
 
   const handleReset = useCallback(() => {
+    abortControllerRef.current?.abort();
     setMainFile(null);
     setRefFile(null);
     setNote("");
@@ -118,7 +134,7 @@ export default function Home() {
 
         <div className="space-y-6">
           {/* Upload */}
-          <UploadPanel onImagesChange={handleImagesChange} disabled={stage === "processing"} />
+          <UploadPanel onImagesChange={handleImagesChange} disabled={stage !== "idle"} />
 
           {/* Controls */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-wrap items-center gap-4">
@@ -230,7 +246,7 @@ export default function Home() {
           {/* Idle actions */}
           {stage !== "done" && (
             <div className="flex justify-center gap-4">
-              {mainFile && (
+              {mainFile && stage !== "processing" && (
                 <button
                   onClick={handleReset}
                   className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
