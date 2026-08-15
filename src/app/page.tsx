@@ -10,6 +10,14 @@ import Link from "next/link";
 import type { Preset } from "@/lib/preset-schema";
 import { ENGINES } from "@/lib/engines";
 import { UPSCALERS } from "@/lib/upscalers";
+import {
+  saveSession,
+  loadSession,
+  clearSession,
+  saveSettings,
+  loadSettings,
+  clearSettings,
+} from "@/lib/session-store";
 
 type Stage = "idle" | "processing" | "done";
 type Mode = "file" | "url";
@@ -99,6 +107,67 @@ export default function Home() {
         // server-side default preset id.
       });
   }, []);
+
+  // Restore persisted settings and the last finished session on first mount,
+  // so a page reload doesn't lose an already-paid-for result.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+
+    const settings = loadSettings();
+    if (settings) {
+      if (settings.presetId) setPresetId(settings.presetId);
+      if (settings.engineId) setEngineId(settings.engineId);
+      if (typeof settings.analyze === "boolean") setAnalyze(settings.analyze);
+      if (typeof settings.upscale === "boolean") setUpscale(settings.upscale);
+      if (settings.upscalerId) setUpscalerId(settings.upscalerId);
+      if (typeof settings.note === "string") setNote(settings.note);
+      if (settings.mode === "file" || settings.mode === "url") setMode(settings.mode);
+    }
+
+    loadSession().then((session) => {
+      if (!session) return;
+      setMode(session.mode);
+      setProductTitle(session.productTitle);
+      setProductSku(session.productSku);
+      setGalleryImages(session.galleryImages);
+      setMainUrl(session.mainUrl);
+      setRefUrl(session.refUrl);
+      if (session.main) {
+        setMainFile(new File([session.main.blob], session.main.name, { type: session.main.type }));
+      }
+      if (session.ref) {
+        setRefFile(new File([session.ref.blob], session.ref.name, { type: session.ref.type }));
+      }
+      setSavedPath(session.savedPath);
+      updateResult(session.result);
+      setStage("done");
+    });
+  }, [updateResult]);
+
+  // Persist the cheap settings on every change.
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    saveSettings({ presetId, engineId, analyze, upscale, upscalerId, note, mode });
+  }, [presetId, engineId, analyze, upscale, upscalerId, note, mode]);
+
+  // Persist the finished session (result + sources) whenever it changes.
+  useEffect(() => {
+    if (!result || stage !== "done") return;
+    saveSession({
+      mode,
+      main: mainFile ? { blob: mainFile, name: mainFile.name, type: mainFile.type } : null,
+      ref: refFile ? { blob: refFile, name: refFile.name, type: refFile.type } : null,
+      productTitle,
+      productSku,
+      galleryImages,
+      mainUrl,
+      refUrl,
+      result,
+      savedPath,
+    });
+  }, [result, stage, savedPath, mode, mainFile, refFile, productTitle, productSku, galleryImages, mainUrl, refUrl]);
 
   // Keep object URLs for the compare view in sync with the selected files.
   useEffect(() => {
@@ -218,6 +287,9 @@ export default function Home() {
     setStage(resultRef.current ? "done" : "idle");
   }, []);
 
+  // «Нове фото»: clears the work in progress (photos, gallery, result, note)
+  // and the persisted session, but keeps the operator's settings (preset,
+  // model, toggles) — they rarely change between photos.
   const handleReset = useCallback(() => {
     abortControllerRef.current?.abort();
     setMainFile(null);
@@ -228,14 +300,25 @@ export default function Home() {
     setMainUrl(null);
     setRefUrl(null);
     setNote("");
-    setPresetId("default");
-    setAnalyze(true);
     setStage("idle");
     updateResult(null);
     setError(null);
     setSavedPath(null);
     setUploadKey((k) => k + 1);
+    void clearSession();
   }, [updateResult]);
+
+  // «Скинути все»: everything back to factory defaults, including settings.
+  const handleResetAll = useCallback(() => {
+    handleReset();
+    setMode("file");
+    setPresetId("default");
+    setEngineId("gemini");
+    setAnalyze(true);
+    setUpscale(false);
+    setUpscalerId("recraft");
+    clearSettings();
+  }, [handleReset]);
 
   const defaultProductName =
     mode === "url"
@@ -249,13 +332,20 @@ export default function Home() {
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-12">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="relative text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-900">
             Каталог: обробка фото товарів
           </h1>
           <p className="text-gray-600 mt-2">
             Завантажте фото товару — отримайте каталожне зображення на єдиному фоні
           </p>
+          <button
+            onClick={handleResetAll}
+            title="Очистити фото, результат і всі налаштування"
+            className="absolute right-0 top-0 text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            Скинути все
+          </button>
         </div>
 
         <div className="space-y-6">
