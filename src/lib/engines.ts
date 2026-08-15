@@ -45,7 +45,32 @@ export const ENGINES: Engine[] = [
     falEndpoint: "fal-ai/flux-2/edit",
     price: "~$0.04",
     description:
-      "Black Forest Labs ($0.012/мегапіксель). Єдина, що видає точний розмір пресета. Швидка (~9 с).",
+      "Black Forest Labs ($0.012/мегапіксель). Видає точний розмір пресета. Швидка (~9 с).",
+  },
+  {
+    id: "fal-seedream-5-lite",
+    label: "Seedream 5.0 Lite (fal)",
+    provider: "fal",
+    falEndpoint: "bytedance/seedream/v5/lite/edit",
+    price: "$0.035",
+    description: "Новіше покоління Seedream за ціною 4.5. Точний розмір пресета.",
+  },
+  {
+    id: "fal-seedream-5-pro",
+    label: "Seedream 5.0 Pro (fal)",
+    provider: "fal",
+    falEndpoint: "bytedance/seedream/v5/pro/edit",
+    price: "~$0.07",
+    description:
+      "Точкове редагування: міняє потрібне, тримає решту кадру недоторканою. Головний кандидат на якість.",
+  },
+  {
+    id: "fal-qwen-2-pro",
+    label: "Qwen Image 2 Pro (fal)",
+    provider: "fal",
+    falEndpoint: "fal-ai/qwen-image-2/pro/edit",
+    price: "$0.075",
+    description: "Alibaba. Дуже точно слідує інструкціям, сильна з текстом і принтами.",
   },
 ];
 

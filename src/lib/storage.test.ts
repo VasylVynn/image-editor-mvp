@@ -61,6 +61,27 @@ describe("saveResult", () => {
     expect(entry.timestamp).toBeTruthy();
   });
 
+  it("compresses real PNG images before writing", async () => {
+    const sharp = (await import("sharp")).default;
+    const width = 200;
+    const height = 200;
+    const raw = Buffer.alloc(width * height * 3);
+    for (let i = 0; i < raw.length; i++) raw[i] = i % 251;
+    const png = await sharp(raw, { raw: { width, height, channels: 3 } })
+      .png()
+      .toBuffer();
+
+    const { filePath } = await saveResult(
+      { imageBase64: png.toString("base64"), filenameBase: "compressed", preset },
+      dir
+    );
+    const written = await fs.readFile(filePath);
+    expect(written.length).toBeLessThan(png.length);
+    const meta = await sharp(written).metadata();
+    expect(meta.format).toBe("png");
+    expect(meta.width).toBe(width);
+  });
+
   it("creates missing nested folders", async () => {
     const nested = path.join(dir, "a", "b");
     const { filePath } = await saveResult(

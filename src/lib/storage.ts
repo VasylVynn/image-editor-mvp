@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { compressPng } from "./compressor";
 import { type Preset, resolveOutputDir } from "./presets";
 
 export interface SaveInput {
@@ -38,7 +39,8 @@ export async function saveResult(
   }
 
   const filePath = path.join(dir, name);
-  await fs.writeFile(filePath, Buffer.from(input.imageBase64, "base64"));
+  const compressed = await compressPng(Buffer.from(input.imageBase64, "base64"));
+  await fs.writeFile(filePath, compressed);
 
   const logEntry = {
     timestamp: new Date().toISOString(),

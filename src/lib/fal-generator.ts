@@ -60,13 +60,18 @@ function endpointInput(
   const height = input.targetHeight;
 
   if (endpoint.includes("seedream")) {
-    // Seedream wants dimensions ≥1024; double the catalog size keeps the ratio.
-    return width && height
-      ? { ...base, image_size: { width: width * 2, height: height * 2 } }
-      : base;
+    if (!width || !height) return base;
+    if (endpoint.includes("/v5/")) {
+      // v5 wants total area within 1024²..2048²; typical catalog sizes fit
+      // as-is (exact output!), tiny presets get doubled to reach the floor.
+      const scale = width * height < 1024 * 1024 ? 2 : 1;
+      return { ...base, image_size: { width: width * scale, height: height * scale } };
+    }
+    // v4.x wants dimensions ≥1024; doubling the catalog size keeps the ratio.
+    return { ...base, image_size: { width: width * 2, height: height * 2 } };
   }
-  if (endpoint.includes("flux-2")) {
-    // FLUX.2 accepts 512–2048 px per side; catalog sizes fit directly.
+  if (endpoint.includes("flux-2") || endpoint.includes("qwen")) {
+    // Both accept exact pixel dimensions; catalog sizes fit directly.
     return width && height ? { ...base, image_size: { width, height } } : base;
   }
   // Nano Banana family: aspect_ratio enum + resolution.

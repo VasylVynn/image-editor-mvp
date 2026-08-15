@@ -53,12 +53,38 @@ describe("generateWithFal", () => {
     expect(calls[0][1].input.aspect_ratio).toBeUndefined();
   });
 
-  it("seedream gets doubled dimensions (its minimum side is ~1024)", async () => {
+  it("seedream v4.x gets doubled dimensions (its minimum side is ~1024)", async () => {
     const calls: any[] = [];
     await generateWithFal("fal-ai/bytedance/seedream/v4.5/edit", BASE_INPUT, {
       subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
     });
     expect(calls[0][1].input.image_size).toEqual({ width: 1880, height: 2600 });
+  });
+
+  it("seedream v5 gets exact catalog dimensions (area already above its 1024² floor)", async () => {
+    const calls: any[] = [];
+    await generateWithFal("bytedance/seedream/v5/pro/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
+  });
+
+  it("seedream v5 doubles tiny presets to reach the area floor", async () => {
+    const calls: any[] = [];
+    await generateWithFal(
+      "bytedance/seedream/v5/lite/edit",
+      { ...BASE_INPUT, targetWidth: 600, targetHeight: 800 },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
+    );
+    expect(calls[0][1].input.image_size).toEqual({ width: 1200, height: 1600 });
+  });
+
+  it("qwen gets exact catalog dimensions", async () => {
+    const calls: any[] = [];
+    await generateWithFal("fal-ai/qwen-image-2/pro/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
   });
 
   it("throws a Ukrainian error when no image comes back", async () => {
