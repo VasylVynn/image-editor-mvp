@@ -364,11 +364,16 @@ export default function Home() {
               >
                 {ENGINES.map((engine) => (
                   <option key={engine.id} value={engine.id}>
-                    {engine.label}
+                    {engine.label} — {engine.price}
                   </option>
                 ))}
               </select>
             </label>
+
+            <p className="w-full text-xs text-gray-500 -mt-2">
+              {ENGINES.find((e) => e.id === engineId)?.description}{" "}
+              Ціна — за одну генерацію.
+            </p>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
