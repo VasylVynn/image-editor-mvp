@@ -89,7 +89,53 @@ export async function fetchProductPage(
   $('[class*="gallery"] img, [class*="product"] img, main img')
     .each((_, el) => push($(el).attr("src") ?? $(el).attr("data-src")));
 
-  return { title, sku, images: urls.slice(0, MAX_GALLERY) };
+  const images = await upgradeToOriginals(urls.slice(0, MAX_GALLERY), deps, signal);
+  return { title, sku, images };
+}
+
+// Magento serves gallery thumbnails from /media/catalog/product/cache/<hash>/…;
+// the full-resolution original lives at the same path without the cache segment
+// (observed 192×265 thumb vs 868×1200 original on a real store). Swap each
+// cache URL for its original when the original actually exists (HEAD check),
+// and dedupe — several cache variants of one file collapse into one original.
+const MAGENTO_CACHE = /(\/media\/catalog\/product)\/cache\/[0-9a-f]{32}(\/.+)$/;
+
+async function upgradeToOriginals(
+  urls: string[],
+  deps: FetchDeps,
+  signal?: AbortSignal
+): Promise<string[]> {
+  const verified = new Map<string, boolean>();
+  const candidates = urls.map((url) => {
+    const match = url.match(MAGENTO_CACHE);
+    return match ? url.replace(MAGENTO_CACHE, "$1$2") : null;
+  });
+
+  await Promise.all(
+    [...new Set(candidates.filter((c): c is string => c !== null))].map(async (original) => {
+      try {
+        const response = await deps.fetchFn(original, {
+          method: "HEAD",
+          headers: { "User-Agent": "Mozilla/5.0 (catalog-image-tool)" },
+          signal: boundedSignal(signal),
+        });
+        verified.set(
+          original,
+          response.ok && (response.headers.get("content-type")?.startsWith("image/") ?? true)
+        );
+      } catch {
+        verified.set(original, false);
+      }
+    })
+  );
+
+  const result: string[] = [];
+  urls.forEach((url, i) => {
+    const original = candidates[i];
+    const final = original && verified.get(original) ? original : url;
+    if (!result.includes(final)) result.push(final);
+  });
+  return result;
 }
 
 export async function downloadImage(

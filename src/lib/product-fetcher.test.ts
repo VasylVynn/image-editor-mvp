@@ -27,6 +27,30 @@ function fakeFetch(body: string | ArrayBuffer, headers: Record<string, string> =
     new Response(body, { status: 200, headers })) as unknown as typeof fetch;
 }
 
+const HASH_A = "a".repeat(32);
+const HASH_B = "b".repeat(32);
+const MAGENTO_HTML = `
+<html><head>
+  <meta property="og:image" content="https://shop.ua/media/catalog/product/cache/${HASH_A}/1/7/main.png" />
+</head><body>
+  <div class="gallery">
+    <img src="/media/catalog/product/cache/${HASH_B}/1/7/main.png" />
+    <img src="/media/catalog/product/cache/${HASH_A}/1/7/second.jpg" />
+  </div>
+</body></html>`;
+
+function magentoFetch(headOk: boolean) {
+  return (async (_url: unknown, init?: RequestInit) => {
+    if (init?.method === "HEAD") {
+      return new Response(null, {
+        status: headOk ? 200 : 404,
+        headers: { "content-type": "image/png" },
+      });
+    }
+    return new Response(MAGENTO_HTML, { status: 200, headers: { "content-type": "text/html" } });
+  }) as unknown as typeof fetch;
+}
+
 describe("fetchProductPage", () => {
   it("extracts og:title, og:image, gallery images and itemprop sku", async () => {
     const page = await fetchProductPage("https://shop.ua/p/1", {
@@ -50,6 +74,24 @@ describe("fetchProductPage", () => {
 
   it("rejects invalid URLs", async () => {
     await expect(fetchProductPage("not-a-url")).rejects.toThrow();
+  });
+
+  it("upgrades Magento cache thumbnails to verified originals and dedupes variants", async () => {
+    const page = await fetchProductPage("https://shop.ua/p/1", {
+      fetchFn: magentoFetch(true),
+    });
+    expect(page.images).toEqual([
+      "https://shop.ua/media/catalog/product/1/7/main.png",
+      "https://shop.ua/media/catalog/product/1/7/second.jpg",
+    ]);
+  });
+
+  it("keeps Magento cache URLs when the originals do not exist", async () => {
+    const page = await fetchProductPage("https://shop.ua/p/1", {
+      fetchFn: magentoFetch(false),
+    });
+    expect(page.images).toHaveLength(3);
+    expect(page.images.every((u) => u.includes("/cache/"))).toBe(true);
   });
 
   it("passes an abort signal through to fetchFn (timeout wiring)", async () => {
