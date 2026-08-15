@@ -1,0 +1,80 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { generateWithFal } from "./fal-generator";
+
+const MAIN = { data: "bWFpbg==", mimeType: "image/jpeg" };
+const REF = { data: "cmVm", mimeType: "image/png" };
+
+const BASE_INPUT = {
+  mainImage: MAIN,
+  prompt: "edit it",
+  aspectRatio: "3:4",
+  targetWidth: 940,
+  targetHeight: 1300,
+};
+
+function fakeSubscribe(images: unknown[] | undefined, calls: unknown[]) {
+  return (async (endpoint: string, opts: unknown) => {
+    calls.push([endpoint, opts]);
+    return { data: { images }, requestId: "r1" };
+  }) as never;
+}
+
+const DATA_URI_RESULT = [{ url: "data:image/png;base64,cmVzdWx0", content_type: "image/png" }];
+
+beforeEach(() => vi.stubEnv("FAL_KEY", "test-key"));
+afterEach(() => vi.unstubAllEnvs());
+
+describe("generateWithFal", () => {
+  it("sends prompt and data-URI images; nano-banana gets aspect_ratio + 2K", async () => {
+    const calls: any[] = [];
+    const out = await generateWithFal(
+      "fal-ai/nano-banana-2/edit",
+      { ...BASE_INPUT, referenceImage: REF },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
+    );
+    expect(out).toEqual({ data: "cmVzdWx0", mimeType: "image/png" });
+    const [endpoint, opts] = calls[0];
+    expect(endpoint).toBe("fal-ai/nano-banana-2/edit");
+    expect(opts.input.prompt).toBe("edit it");
+    expect(opts.input.image_urls).toEqual([
+      "data:image/jpeg;base64,bWFpbg==",
+      "data:image/png;base64,cmVm",
+    ]);
+    expect(opts.input.aspect_ratio).toBe("3:4");
+    expect(opts.input.resolution).toBe("2K");
+  });
+
+  it("flux-2 gets exact image_size from the preset dimensions", async () => {
+    const calls: any[] = [];
+    await generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
+    expect(calls[0][1].input.aspect_ratio).toBeUndefined();
+  });
+
+  it("seedream gets doubled dimensions (its minimum side is ~1024)", async () => {
+    const calls: any[] = [];
+    await generateWithFal("fal-ai/bytedance/seedream/v4.5/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toEqual({ width: 1880, height: 2600 });
+  });
+
+  it("throws a Ukrainian error when no image comes back", async () => {
+    await expect(
+      generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
+        subscribe: fakeSubscribe(undefined, []),
+      })
+    ).rejects.toThrow(/не повернула зображення/);
+  });
+
+  it("throws a Ukrainian error when FAL_KEY is missing", async () => {
+    vi.stubEnv("FAL_KEY", "");
+    await expect(
+      generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
+        subscribe: fakeSubscribe(DATA_URI_RESULT, []),
+      })
+    ).rejects.toThrow(/FAL_KEY не налаштовано/);
+  });
+});

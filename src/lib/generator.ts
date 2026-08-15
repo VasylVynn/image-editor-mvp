@@ -8,6 +8,10 @@ export interface GenerateInput {
   referenceImage?: ImageInput;
   prompt: string;
   aspectRatio: string;
+  /** Exact preset dimensions; fal engines with pixel-size inputs use these.
+   *  The Gemini engine works from aspectRatio alone and ignores them. */
+  targetWidth?: number;
+  targetHeight?: number;
 }
 
 export async function generateImage(

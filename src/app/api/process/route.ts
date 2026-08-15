@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { analyzeImages, formatAnalysis } from "@/lib/analyzer";
 import { generateImage } from "@/lib/generator";
+import { generateWithFal } from "@/lib/fal-generator";
+import { getEngine, type Engine } from "@/lib/engines";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
@@ -58,6 +60,7 @@ async function runAnalysisAndGeneration(input: {
   analyze: boolean;
   preset: Preset;
   note?: string;
+  engine: Engine;
 }): Promise<GenerationOutput> {
   let analysis: string | null = null;
   let analysisFailed = false;
@@ -72,12 +75,18 @@ async function runAnalysisAndGeneration(input: {
   }
 
   const prompt = buildPrompt({ preset: input.preset, analysis: analysis ?? undefined, note: input.note });
-  const result = await generateImage({
+  const generateInput = {
     mainImage: input.mainImage,
     referenceImage: input.referenceImage,
     prompt,
     aspectRatio: input.preset.aspectRatio,
-  });
+    targetWidth: input.preset.width,
+    targetHeight: input.preset.height,
+  };
+  const result =
+    input.engine.provider === "fal"
+      ? await generateWithFal(input.engine.falEndpoint!, generateInput)
+      : await generateImage(generateInput);
 
   return { prompt, result, analysis, analysisFailed };
 }
@@ -90,10 +99,10 @@ function mapGenerationError(rawMessage: string): string {
   const msg = rawMessage.toLowerCase();
 
   if (/\b401\b/.test(msg) || /\b403\b/.test(msg) || /api[ _]?key/.test(msg)) {
-    return "Проблема з ключем Gemini API — перевірте GEMINI_API_KEY";
+    return "Проблема з API-ключем моделі — перевірте GEMINI_API_KEY / FAL_KEY";
   }
-  if (/\b429\b/.test(msg) || /resource_exhausted/.test(msg) || /quota/.test(msg)) {
-    return "Вичерпано ліміт або кошти Gemini API — поповніть білінг";
+  if (/\b429\b/.test(msg) || /resource_exhausted/.test(msg) || /quota/.test(msg) || /exhausted balance/.test(msg)) {
+    return "Вичерпано ліміт або кошти API моделі — поповніть білінг";
   }
   if (
     /\b5\d\d\b/.test(msg) ||
@@ -103,7 +112,7 @@ function mapGenerationError(rawMessage: string): string {
     /enotfound/.test(msg) ||
     /unavailable/.test(msg)
   ) {
-    return "Сервіс Gemini недоступний. Спробуйте ще раз";
+    return "Сервіс генерації недоступний. Спробуйте ще раз";
   }
   if (/timeout/.test(msg) || /\babort/.test(msg)) {
     return "Перевищено час очікування. Спробуйте ще раз";
@@ -121,6 +130,7 @@ export async function POST(request: Request) {
     const note = (formData.get("note") as string) || undefined;
     const presetId = (formData.get("presetId") as string) || "default";
     const analyze = (formData.get("analyze") as string) !== "false";
+    const engine = getEngine(formData.get("model") as string | null);
 
     const preset = await getPreset(presetId);
 
@@ -147,9 +157,9 @@ export async function POST(request: Request) {
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
-        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note }),
+        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine }),
         GENERATION_TIMEOUT_MS,
-        `Gemini generation timeout after ${GENERATION_TIMEOUT_MS}ms`
+        `Generation timeout after ${GENERATION_TIMEOUT_MS}ms`
       );
     } catch (err) {
       console.error("Generation error:", err);

@@ -14,9 +14,13 @@ vi.mock("@/lib/analyzer", () => ({
 vi.mock("@/lib/product-fetcher", () => ({
   downloadImage: vi.fn(async () => ({ data: "ZnJvbVVybA==", mimeType: "image/jpeg" })),
 }));
+vi.mock("@/lib/fal-generator", () => ({
+  generateWithFal: vi.fn(async () => ({ data: "ZmFs", mimeType: "image/png" })),
+}));
 
 import { POST } from "./route";
 import { generateImage } from "@/lib/generator";
+import { generateWithFal } from "@/lib/fal-generator";
 import { analyzeImages } from "@/lib/analyzer";
 
 function makeRequest(fields: Record<string, string | File>) {
@@ -98,7 +102,7 @@ describe("POST /api/process", () => {
     const res = await POST(makeRequest({ image: pngFile() }));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe("Вичерпано ліміт або кошти Gemini API — поповніть білінг");
+    expect(body.error).toBe("Вичерпано ліміт або кошти API моделі — поповніть білінг");
     expect(body.details).toContain("RESOURCE_EXHAUSTED");
   });
 
@@ -116,7 +120,7 @@ describe("POST /api/process", () => {
     const res = await POST(makeRequest({ image: pngFile() }));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe("Проблема з ключем Gemini API — перевірте GEMINI_API_KEY");
+    expect(body.error).toBe("Проблема з API-ключем моделі — перевірте GEMINI_API_KEY / FAL_KEY");
   });
 
   it("maps a 5xx/network generation error to a Ukrainian unavailable message", async () => {
@@ -124,7 +128,7 @@ describe("POST /api/process", () => {
     const res = await POST(makeRequest({ image: pngFile() }));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe("Сервіс Gemini недоступний. Спробуйте ще раз");
+    expect(body.error).toBe("Сервіс генерації недоступний. Спробуйте ще раз");
   });
 
   it("maps a timeout generation error to a Ukrainian message", async () => {
@@ -145,5 +149,24 @@ describe("POST /api/process", () => {
     expect(res.status).toBe(200);
     const arg = vi.mocked(generateImage).mock.calls[0][0];
     expect(arg.mainImage.data).not.toBe("ZnJvbVVybA==");
+  });
+
+  it("dispatches to fal with the engine endpoint and preset dimensions", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), model: "fal-flux-2" }));
+    expect(res.status).toBe(200);
+    expect(generateWithFal).toHaveBeenCalledWith(
+      "fal-ai/flux-2/edit",
+      expect.objectContaining({ targetWidth: 940, targetHeight: 1300 })
+    );
+    expect(generateImage).not.toHaveBeenCalled();
+    const body = await res.json();
+    expect(body.image).toBe("data:image/png;base64,ZmFs");
+  });
+
+  it("unknown model id falls back to the Gemini engine", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), model: "nope" }));
+    expect(res.status).toBe(200);
+    expect(generateImage).toHaveBeenCalled();
+    expect(generateWithFal).not.toHaveBeenCalled();
   });
 });

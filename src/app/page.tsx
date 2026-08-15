@@ -8,6 +8,7 @@ import CompareView from "@/components/CompareView";
 import SaveForm from "@/components/SaveForm";
 import Link from "next/link";
 import type { Preset } from "@/lib/preset-schema";
+import { ENGINES } from "@/lib/engines";
 
 type Stage = "idle" | "processing" | "done";
 type Mode = "file" | "url";
@@ -41,6 +42,7 @@ export default function Home() {
   const [note, setNote] = useState("");
   const [presets, setPresets] = useState<Preset[]>([]);
   const [presetId, setPresetId] = useState("default");
+  const [engineId, setEngineId] = useState("gemini");
   const [analyze, setAnalyze] = useState(true);
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<ProcessResult | null>(null);
@@ -175,6 +177,7 @@ export default function Home() {
       formData.append("note", note);
       formData.append("presetId", presetId);
       formData.append("analyze", String(analyze));
+      formData.append("model", engineId);
 
       const response = await fetch("/api/process", {
         method: "POST",
@@ -199,7 +202,7 @@ export default function Home() {
       // a failed regenerate shouldn't throw away an already-paid-for image.
       setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze, updateResult]);
+  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze, engineId, updateResult]);
 
   // Cancels an in-flight request and returns to a sane state. The fetch's own
   // AbortError branch above is a no-op, so this is the sole place that decides
@@ -350,6 +353,22 @@ export default function Home() {
             >
               ⚙ Пресети
             </Link>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              Модель
+              <select
+                value={engineId}
+                onChange={(e) => setEngineId(e.target.value)}
+                disabled={stage === "processing"}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-900"
+              >
+                {ENGINES.map((engine) => (
+                  <option key={engine.id} value={engine.id}>
+                    {engine.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
