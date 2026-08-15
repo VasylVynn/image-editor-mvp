@@ -17,10 +17,14 @@ vi.mock("@/lib/product-fetcher", () => ({
 vi.mock("@/lib/fal-generator", () => ({
   generateWithFal: vi.fn(async () => ({ data: "ZmFs", mimeType: "image/png" })),
 }));
+vi.mock("@/lib/upscaler", () => ({
+  upscaleImage: vi.fn(async () => ({ data: "YmlnZ2Vy", mimeType: "image/png" })),
+}));
 
 import { POST } from "./route";
 import { generateImage } from "@/lib/generator";
 import { generateWithFal } from "@/lib/fal-generator";
+import { upscaleImage } from "@/lib/upscaler";
 import { analyzeImages } from "@/lib/analyzer";
 
 function makeRequest(fields: Record<string, string | File>) {
@@ -168,5 +172,35 @@ describe("POST /api/process", () => {
     expect(res.status).toBe(200);
     expect(generateImage).toHaveBeenCalled();
     expect(generateWithFal).not.toHaveBeenCalled();
+  });
+
+  it("upscales the main image before generation when upscale=true", async () => {
+    const res = await POST(
+      makeRequest({ image: pngFile(), upscale: "true", upscaler: "topaz" })
+    );
+    expect(res.status).toBe(200);
+    expect(upscaleImage).toHaveBeenCalledWith(
+      "fal-ai/topaz/upscale/image",
+      expect.objectContaining({ mimeType: "image/png" })
+    );
+    const genArg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(genArg.mainImage.data).toBe("YmlnZ2Vy"); // the upscaled bytes
+    const body = await res.json();
+    expect(body.upscaleFailed).toBe(false);
+  });
+
+  it("skips upscaling when the checkbox is off", async () => {
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(200);
+    expect(upscaleImage).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the original image when upscaling fails", async () => {
+    vi.mocked(upscaleImage).mockRejectedValueOnce(new Error("upscaler down"));
+    const res = await POST(makeRequest({ image: pngFile(), upscale: "true" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.upscaleFailed).toBe(true);
+    expect(generateImage).toHaveBeenCalled(); // generation still ran
   });
 });

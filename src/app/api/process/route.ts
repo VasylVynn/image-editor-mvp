@@ -3,6 +3,8 @@ import { analyzeImages, formatAnalysis } from "@/lib/analyzer";
 import { generateImage } from "@/lib/generator";
 import { generateWithFal } from "@/lib/fal-generator";
 import { getEngine, type Engine } from "@/lib/engines";
+import { upscaleImage } from "@/lib/upscaler";
+import { getUpscaler, type Upscaler } from "@/lib/upscalers";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
@@ -52,6 +54,7 @@ interface GenerationOutput {
   result: ImageInput;
   analysis: string | null;
   analysisFailed: boolean;
+  upscaleFailed: boolean;
 }
 
 async function runAnalysisAndGeneration(input: {
@@ -61,12 +64,27 @@ async function runAnalysisAndGeneration(input: {
   preset: Preset;
   note?: string;
   engine: Engine;
+  upscaler?: Upscaler;
 }): Promise<GenerationOutput> {
+  // Optional pre-step: upscale the (often tiny) source photo so the generator
+  // and analyzer work from more pixels. Soft-fails like analysis — the
+  // original image is a perfectly usable fallback.
+  let mainImage = input.mainImage;
+  let upscaleFailed = false;
+  if (input.upscaler) {
+    try {
+      mainImage = await upscaleImage(input.upscaler.falEndpoint, mainImage);
+    } catch (err) {
+      console.error("Upscale failed, using the original image:", err);
+      upscaleFailed = true;
+    }
+  }
+
   let analysis: string | null = null;
   let analysisFailed = false;
   if (input.analyze) {
     try {
-      const images = input.referenceImage ? [input.mainImage, input.referenceImage] : [input.mainImage];
+      const images = input.referenceImage ? [mainImage, input.referenceImage] : [mainImage];
       analysis = formatAnalysis(await analyzeImages(images));
     } catch (err) {
       console.error("Analysis failed, falling back to base prompt:", err);
@@ -76,7 +94,7 @@ async function runAnalysisAndGeneration(input: {
 
   const prompt = buildPrompt({ preset: input.preset, analysis: analysis ?? undefined, note: input.note });
   const generateInput = {
-    mainImage: input.mainImage,
+    mainImage,
     referenceImage: input.referenceImage,
     prompt,
     aspectRatio: input.preset.aspectRatio,
@@ -88,7 +106,7 @@ async function runAnalysisAndGeneration(input: {
       ? await generateWithFal(input.engine.falEndpoint!, generateInput)
       : await generateImage(generateInput);
 
-  return { prompt, result, analysis, analysisFailed };
+  return { prompt, result, analysis, analysisFailed, upscaleFailed };
 }
 
 // Maps raw Gemini SDK error text to an operator-facing Ukrainian message.
@@ -131,6 +149,10 @@ export async function POST(request: Request) {
     const presetId = (formData.get("presetId") as string) || "default";
     const analyze = (formData.get("analyze") as string) !== "false";
     const engine = getEngine(formData.get("model") as string | null);
+    const upscaleEnabled = (formData.get("upscale") as string) === "true";
+    const upscaler = upscaleEnabled
+      ? getUpscaler(formData.get("upscaler") as string | null)
+      : undefined;
 
     const preset = await getPreset(presetId);
 
@@ -157,7 +179,7 @@ export async function POST(request: Request) {
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
-        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine }),
+        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler }),
         GENERATION_TIMEOUT_MS,
         `Generation timeout after ${GENERATION_TIMEOUT_MS}ms`
       );
@@ -176,6 +198,7 @@ export async function POST(request: Request) {
       promptUsed: generation.prompt,
       analysis: generation.analysis,
       analysisFailed: generation.analysisFailed,
+      upscaleFailed: generation.upscaleFailed,
     });
   } catch (error) {
     console.error("Processing error:", error);

@@ -6,13 +6,13 @@ export interface FalDeps {
   subscribe: typeof fal.subscribe;
 }
 
-interface FalImageFile {
+export interface FalImageFile {
   url: string;
   content_type?: string;
 }
 
 let configured = false;
-function ensureConfigured(): void {
+export function ensureFalConfigured(): void {
   if (!process.env.FAL_KEY) {
     // User-surfaced via route error handlers — Ukrainian.
     throw new Error("FAL_KEY не налаштовано. Додайте його у .env.local");
@@ -23,7 +23,7 @@ function ensureConfigured(): void {
   }
 }
 
-function toDataUri(image: ImageInput): string {
+export function toDataUri(image: ImageInput): string {
   return `data:${image.mimeType};base64,${image.data}`;
 }
 
@@ -61,7 +61,7 @@ function endpointInput(
   return { ...base, aspect_ratio: input.aspectRatio, resolution: "2K" };
 }
 
-async function toImageInput(file: FalImageFile): Promise<ImageInput> {
+export async function falFileToImageInput(file: FalImageFile): Promise<ImageInput> {
   if (file.url.startsWith("data:")) {
     const comma = file.url.indexOf(",");
     const mimeType = file.url.slice(5, file.url.indexOf(";"));
@@ -83,7 +83,7 @@ export async function generateWithFal(
   input: GenerateInput,
   deps: FalDeps = { subscribe: fal.subscribe.bind(fal) }
 ): Promise<ImageInput> {
-  ensureConfigured();
+  ensureFalConfigured();
   const result = await deps.subscribe(endpoint, {
     input: endpointInput(endpoint, input),
   });
@@ -92,5 +92,5 @@ export async function generateWithFal(
     // User-surfaced via route error handlers — Ukrainian.
     throw new Error("Модель fal не повернула зображення");
   }
-  return toImageInput(image);
+  return falFileToImageInput(image);
 }

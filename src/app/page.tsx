@@ -9,6 +9,7 @@ import SaveForm from "@/components/SaveForm";
 import Link from "next/link";
 import type { Preset } from "@/lib/preset-schema";
 import { ENGINES } from "@/lib/engines";
+import { UPSCALERS } from "@/lib/upscalers";
 
 type Stage = "idle" | "processing" | "done";
 type Mode = "file" | "url";
@@ -18,6 +19,7 @@ interface ProcessResult {
   promptUsed: string;
   analysis: string | null;
   analysisFailed: boolean;
+  upscaleFailed?: boolean;
 }
 
 interface ProductInfo {
@@ -43,6 +45,8 @@ export default function Home() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [presetId, setPresetId] = useState("default");
   const [engineId, setEngineId] = useState("gemini");
+  const [upscale, setUpscale] = useState(false);
+  const [upscalerId, setUpscalerId] = useState("recraft");
   const [analyze, setAnalyze] = useState(true);
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<ProcessResult | null>(null);
@@ -178,6 +182,8 @@ export default function Home() {
       formData.append("presetId", presetId);
       formData.append("analyze", String(analyze));
       formData.append("model", engineId);
+      formData.append("upscale", String(upscale));
+      formData.append("upscaler", upscalerId);
 
       const response = await fetch("/api/process", {
         method: "POST",
@@ -202,7 +208,7 @@ export default function Home() {
       // a failed regenerate shouldn't throw away an already-paid-for image.
       setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze, engineId, updateResult]);
+  }, [mode, mainFile, refFile, mainUrl, refUrl, note, presetId, analyze, engineId, upscale, upscalerId, updateResult]);
 
   // Cancels an in-flight request and returns to a sane state. The fetch's own
   // AbortError branch above is a no-op, so this is the sole place that decides
@@ -385,6 +391,30 @@ export default function Home() {
               Аналіз деталей
             </label>
 
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={upscale}
+                onChange={(e) => setUpscale(e.target.checked)}
+                disabled={stage === "processing"}
+              />
+              Покращити мале фото
+            </label>
+            {upscale && (
+              <select
+                value={upscalerId}
+                onChange={(e) => setUpscalerId(e.target.value)}
+                disabled={stage === "processing"}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-900"
+              >
+                {UPSCALERS.map((upscaler) => (
+                  <option key={upscaler.id} value={upscaler.id}>
+                    {upscaler.label} — {upscaler.price}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {stage !== "done" && (
               <input
                 type="text"
@@ -430,6 +460,11 @@ export default function Home() {
               {result.analysisFailed && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm text-center">
                   Аналіз не спрацював, використано базовий промпт
+                </div>
+              )}
+              {result.upscaleFailed && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm text-center">
+                  Апскейл не спрацював, використано оригінальне фото
                 </div>
               )}
 
