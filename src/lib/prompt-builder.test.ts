@@ -36,6 +36,16 @@ describe("buildPrompt", () => {
     expect(p).not.toContain("сам товар не змінюй");
   });
 
+  it("reference color mode points at the attached swatch and omits the hex", () => {
+    const p = buildPrompt({ preset, colorMode: "reference" });
+    expect(p).toContain("last attached image");
+    expect(p).not.toContain("#E9E9E9");
+  });
+
+  it("forbids rendering text or color codes on the image", () => {
+    expect(buildPrompt({ preset })).toContain("Never render any text");
+  });
+
   it("appends analysis fragment when provided, omits section otherwise", () => {
     expect(buildPrompt({ preset, analysis: "4 wooden buttons" })).toContain("4 wooden buttons");
     expect(buildPrompt({ preset })).not.toContain("з аналізу фото");

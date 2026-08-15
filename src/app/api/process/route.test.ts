@@ -160,8 +160,15 @@ describe("POST /api/process", () => {
     expect(res.status).toBe(200);
     expect(generateWithFal).toHaveBeenCalledWith(
       "fal-ai/flux-2/edit",
-      expect.objectContaining({ targetWidth: 940, targetHeight: 1300 })
+      expect.objectContaining({
+        targetWidth: 940,
+        targetHeight: 1300,
+        backgroundSwatch: expect.objectContaining({ mimeType: "image/png" }),
+      })
     );
+    const falArg = vi.mocked(generateWithFal).mock.calls[0][1];
+    expect(falArg.prompt).toContain("last attached image"); // reference color mode
+    expect(falArg.prompt).not.toContain("#E9E9E9");
     expect(generateImage).not.toHaveBeenCalled();
     const body = await res.json();
     expect(body.image).toBe("data:image/png;base64,ZmFs");

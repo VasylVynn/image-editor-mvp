@@ -99,6 +99,8 @@ export async function generateWithFal(
   const imageUrls = await Promise.all([
     imageToFalUrl(input.mainImage, deps),
     ...(input.referenceImage ? [imageToFalUrl(input.referenceImage, deps)] : []),
+    // The color swatch must stay LAST — the prompt refers to "the last attached image".
+    ...(input.backgroundSwatch ? [imageToFalUrl(input.backgroundSwatch, deps)] : []),
   ]);
   const result = await deps.subscribe(endpoint, {
     input: endpointInput(endpoint, input, imageUrls),

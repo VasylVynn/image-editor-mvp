@@ -5,6 +5,7 @@ import { generateWithFal } from "@/lib/fal-generator";
 import { getEngine, type Engine } from "@/lib/engines";
 import { upscaleImage } from "@/lib/upscaler";
 import { getUpscaler, type Upscaler } from "@/lib/upscalers";
+import { colorSwatchImage } from "@/lib/color-swatch";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
@@ -92,7 +93,15 @@ async function runAnalysisAndGeneration(input: {
     }
   }
 
-  const prompt = buildPrompt({ preset: input.preset, analysis: analysis ?? undefined, note: input.note });
+  // fal engines get the background as an attached color swatch instead of a
+  // hex code in text — Seedream misreads hex (painted "#E99999" onto one run).
+  const isFal = input.engine.provider === "fal";
+  const prompt = buildPrompt({
+    preset: input.preset,
+    analysis: analysis ?? undefined,
+    note: input.note,
+    colorMode: isFal ? "reference" : "hex",
+  });
   const generateInput = {
     mainImage,
     referenceImage: input.referenceImage,
@@ -100,11 +109,11 @@ async function runAnalysisAndGeneration(input: {
     aspectRatio: input.preset.aspectRatio,
     targetWidth: input.preset.width,
     targetHeight: input.preset.height,
+    backgroundSwatch: isFal ? colorSwatchImage(input.preset.background) : undefined,
   };
-  const result =
-    input.engine.provider === "fal"
-      ? await generateWithFal(input.engine.falEndpoint!, generateInput)
-      : await generateImage(generateInput);
+  const result = isFal
+    ? await generateWithFal(input.engine.falEndpoint!, generateInput)
+    : await generateImage(generateInput);
 
   return { prompt, result, analysis, analysisFailed, upscaleFailed };
 }

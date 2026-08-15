@@ -12,6 +12,9 @@ export interface GenerateInput {
    *  The Gemini engine works from aspectRatio alone and ignores them. */
   targetWidth?: number;
   targetHeight?: number;
+  /** Solid-color swatch attached as the last reference image for engines that
+   *  misread hex codes in text prompts (see prompt-builder colorMode). */
+  backgroundSwatch?: ImageInput;
 }
 
 export async function generateImage(

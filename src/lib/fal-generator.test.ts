@@ -69,6 +69,19 @@ describe("generateWithFal", () => {
     ).rejects.toThrow(/не повернула зображення/);
   });
 
+  it("attaches the background swatch as the LAST image url", async () => {
+    const calls: any[] = [];
+    const swatch = { data: "c3dhdGNo", mimeType: "image/png" };
+    await generateWithFal(
+      "fal-ai/bytedance/seedream/v4.5/edit",
+      { ...BASE_INPUT, referenceImage: REF, backgroundSwatch: swatch },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
+    );
+    const urls = calls[0][1].input.image_urls;
+    expect(urls).toHaveLength(3);
+    expect(urls[2]).toBe("data:image/png;base64,c3dhdGNo");
+  });
+
   it("uploads oversized images to fal storage instead of inlining them", async () => {
     const calls: any[] = [];
     const bigImage = {
