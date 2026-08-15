@@ -4,6 +4,8 @@ import type { GenerateInput } from "./generator";
 
 export interface FalDeps {
   subscribe: typeof fal.subscribe;
+  /** Uploads a blob to fal storage and returns its hosted URL. */
+  upload?: (blob: Blob) => Promise<string>;
 }
 
 export interface FalImageFile {
@@ -27,16 +29,26 @@ export function toDataUri(image: ImageInput): string {
   return `data:${image.mimeType};base64,${image.data}`;
 }
 
+// fal rejects inline files over 5MB (422 file_too_large, verified live) —
+// upscaled intermediates easily exceed that. Anything beyond a modest size is
+// uploaded to fal storage first and passed as a hosted URL instead of an
+// inline data URI; small images stay inline to skip the extra roundtrip.
+const INLINE_IMAGE_LIMIT_BYTES = 900 * 1024;
+
+export async function imageToFalUrl(image: ImageInput, deps: FalDeps): Promise<string> {
+  const bytes = Buffer.from(image.data, "base64");
+  if (bytes.byteLength <= INLINE_IMAGE_LIMIT_BYTES) return toDataUri(image);
+  const upload = deps.upload ?? ((blob: Blob) => fal.storage.upload(blob));
+  return upload(new Blob([bytes], { type: image.mimeType }));
+}
+
 // Each fal endpoint has its own sizing knobs; map the preset's exact target
 // dimensions into whatever the endpoint accepts, preserving the ratio.
 function endpointInput(
   endpoint: string,
-  input: GenerateInput
+  input: GenerateInput,
+  imageUrls: string[]
 ): Record<string, unknown> {
-  const imageUrls = [
-    toDataUri(input.mainImage),
-    ...(input.referenceImage ? [toDataUri(input.referenceImage)] : []),
-  ];
   const base = {
     prompt: input.prompt,
     image_urls: imageUrls,
@@ -84,8 +96,12 @@ export async function generateWithFal(
   deps: FalDeps = { subscribe: fal.subscribe.bind(fal) }
 ): Promise<ImageInput> {
   ensureFalConfigured();
+  const imageUrls = await Promise.all([
+    imageToFalUrl(input.mainImage, deps),
+    ...(input.referenceImage ? [imageToFalUrl(input.referenceImage, deps)] : []),
+  ]);
   const result = await deps.subscribe(endpoint, {
-    input: endpointInput(endpoint, input),
+    input: endpointInput(endpoint, input, imageUrls),
   });
   const image = (result.data as { images?: FalImageFile[] })?.images?.[0];
   if (!image?.url) {

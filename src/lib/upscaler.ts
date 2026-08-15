@@ -2,7 +2,7 @@ import { fal } from "@fal-ai/client";
 import type { ImageInput } from "./types";
 import {
   ensureFalConfigured,
-  toDataUri,
+  imageToFalUrl,
   falFileToImageInput,
   type FalImageFile,
   type FalDeps,
@@ -16,7 +16,7 @@ export async function upscaleImage(
   deps: FalDeps = { subscribe: fal.subscribe.bind(fal) }
 ): Promise<ImageInput> {
   ensureFalConfigured();
-  const input: Record<string, unknown> = { image_url: toDataUri(image) };
+  const input: Record<string, unknown> = { image_url: await imageToFalUrl(image, deps) };
   if (endpoint.includes("topaz")) {
     // Photo-faithful default model; PNG keeps prints/edges lossless.
     input.model = "Standard V2";

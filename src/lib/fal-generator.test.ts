@@ -69,6 +69,25 @@ describe("generateWithFal", () => {
     ).rejects.toThrow(/не повернула зображення/);
   });
 
+  it("uploads oversized images to fal storage instead of inlining them", async () => {
+    const calls: any[] = [];
+    const bigImage = {
+      data: Buffer.alloc(1024 * 1024, 7).toString("base64"), // 1MB > inline limit
+      mimeType: "image/png",
+    };
+    const upload = vi.fn(async () => "https://fal.storage/big.png");
+    await generateWithFal(
+      "fal-ai/flux-2/edit",
+      { ...BASE_INPUT, mainImage: bigImage, referenceImage: REF },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls), upload }
+    );
+    expect(upload).toHaveBeenCalledTimes(1); // only the big one; small ref stays inline
+    expect(calls[0][1].input.image_urls).toEqual([
+      "https://fal.storage/big.png",
+      "data:image/png;base64,cmVm",
+    ]);
+  });
+
   it("throws a Ukrainian error when FAL_KEY is missing", async () => {
     vi.stubEnv("FAL_KEY", "");
     await expect(
