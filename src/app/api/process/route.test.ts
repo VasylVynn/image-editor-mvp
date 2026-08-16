@@ -156,10 +156,10 @@ describe("POST /api/process", () => {
   });
 
   it("dispatches to fal with the engine endpoint and preset dimensions", async () => {
-    const res = await POST(makeRequest({ image: pngFile(), model: "fal-flux-2" }));
+    const res = await POST(makeRequest({ image: pngFile(), model: "fal-seedream" }));
     expect(res.status).toBe(200);
     expect(generateWithFal).toHaveBeenCalledWith(
-      "fal-ai/flux-2/edit",
+      "fal-ai/bytedance/seedream/v4.5/edit",
       expect.objectContaining({
         targetWidth: 940,
         targetHeight: 1300,
@@ -174,14 +174,6 @@ describe("POST /api/process", () => {
     expect(body.image).toBe("data:image/png;base64,ZmFs");
   });
 
-  it("single-image engines (kontext) get hex color wording and no swatch", async () => {
-    const res = await POST(makeRequest({ image: pngFile(), model: "fal-kontext-pro" }));
-    expect(res.status).toBe(200);
-    const falArg = vi.mocked(generateWithFal).mock.calls[0][1];
-    expect(falArg.backgroundSwatch).toBeUndefined();
-    expect(falArg.prompt).toContain("#E9E9E9");
-    expect(falArg.prompt).not.toContain("last attached image");
-  });
 
   it("nano-banana-2 runs at the cheaper 1K tier without any post-upscale", async () => {
     const res = await POST(makeRequest({ image: pngFile(), model: "fal-nano-banana-2" }));

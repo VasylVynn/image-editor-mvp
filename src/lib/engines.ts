@@ -8,8 +8,6 @@ export interface Engine {
   /** Output size tier ("0.5K" | "1K" | "2K" | "4K"); default 2K. Applies to
    *  the Gemini provider and to fal Nano Banana endpoints. */
   imageSize?: string;
-  /** Endpoint accepts exactly one input image (no refs, no color swatch). */
-  singleImage?: boolean;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -45,15 +43,6 @@ export const ENGINES: Engine[] = [
       "ByteDance. Найдешевша, добре тримає деталі й текстуру тканини. Кандидат на щоденну роботу.",
   },
   {
-    id: "fal-flux-2",
-    label: "FLUX.2 (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/flux-2/edit",
-    price: "~$0.04",
-    description:
-      "Black Forest Labs ($0.012/мегапіксель). Видає точний розмір пресета. Швидка (~9 с).",
-  },
-  {
     id: "fal-seedream-5-lite",
     label: "Seedream 5.0 Lite (fal)",
     provider: "fal",
@@ -77,49 +66,6 @@ export const ENGINES: Engine[] = [
     falEndpoint: "fal-ai/qwen-image-2/pro/edit",
     price: "$0.075",
     description: "Alibaba. Дуже точно слідує інструкціям, сильна з текстом і принтами.",
-  },
-  {
-    id: "fal-kontext-pro",
-    label: "FLUX.1 Kontext Pro (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/flux-pro/kontext",
-    singleImage: true,
-    price: "$0.04",
-    description:
-      "Заточена під збереження обʼєкта без перемальовування. Один вхід — без референсів і свотча (фон текстом).",
-  },
-  {
-    id: "fal-kontext-max",
-    label: "FLUX.1 Kontext Max (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/flux-pro/kontext/max",
-    singleImage: true,
-    price: "$0.08",
-    description: "Топ-версія Kontext. Теж один вхід, без референсів.",
-  },
-  {
-    id: "fal-flux-2-pro",
-    label: "FLUX.2 Pro (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/flux-2-pro/edit",
-    price: "~$0.05",
-    description: "Прокачаний FLUX.2 ($0.03 перший MP + $0.015 далі). Точний розмір пресета.",
-  },
-  {
-    id: "fal-hidream-o1",
-    label: "HiDream O1 (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/hidream-o1-image/dev/edit",
-    price: "~$0.01",
-    description: "Найдешевша ($0.005/MP). Якість — лотерея, але за копійки варто спробувати.",
-  },
-  {
-    id: "fal-firered",
-    label: "Firered Edit (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/firered-image-edit",
-    price: "~$0.065",
-    description: "Редактор від Xiaohongshu (RED). Свіжа китайська школа, точний розмір.",
   },
   {
     id: "fal-gpt-image-2-medium",

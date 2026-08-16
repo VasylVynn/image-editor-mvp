@@ -15,7 +15,7 @@ describe("engines", () => {
   });
 
   it("getEngine resolves known ids and falls back to gemini", () => {
-    expect(getEngine("fal-flux-2").falEndpoint).toBe("fal-ai/flux-2/edit");
+    expect(getEngine("fal-seedream").falEndpoint).toBe("fal-ai/bytedance/seedream/v4.5/edit");
     expect(getEngine("nope").id).toBe("gemini");
     expect(getEngine(undefined).id).toBe("gemini");
     expect(getEngine(null).id).toBe("gemini");

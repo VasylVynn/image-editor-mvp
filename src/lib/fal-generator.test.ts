@@ -44,14 +44,6 @@ describe("generateWithFal", () => {
     expect(opts.input.resolution).toBe("2K");
   });
 
-  it("flux-2 gets exact image_size from the preset dimensions", async () => {
-    const calls: any[] = [];
-    await generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
-      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
-    });
-    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
-    expect(calls[0][1].input.aspect_ratio).toBeUndefined();
-  });
 
   it("seedream v4.x gets doubled dimensions (its minimum side is ~1024)", async () => {
     const calls: any[] = [];
@@ -79,39 +71,8 @@ describe("generateWithFal", () => {
     expect(calls[0][1].input.image_size).toEqual({ width: 1200, height: 1600 });
   });
 
-  it("kontext takes a single image_url and drops every other reference", async () => {
-    const calls: any[] = [];
-    const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
-    await generateWithFal(
-      "fal-ai/flux-pro/kontext",
-      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra] },
-      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
-    );
-    const inp = calls[0][1].input;
-    expect(inp.image_url).toBe("data:image/jpeg;base64,bWFpbg==");
-    expect(inp.image_urls).toBeUndefined();
-    expect(inp.aspect_ratio).toBe("3:4");
-  });
 
-  it("hidream sends reference_image_urls with exact dimensions", async () => {
-    const calls: any[] = [];
-    await generateWithFal("fal-ai/hidream-o1-image/dev/edit", BASE_INPUT, {
-      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
-    });
-    const inp = calls[0][1].input;
-    expect(inp.reference_image_urls).toEqual(["data:image/jpeg;base64,bWFpbg=="]);
-    expect(inp.image_urls).toBeUndefined();
-    expect(inp.image_size).toEqual({ width: 940, height: 1300 });
-  });
 
-  it("firered gets exact catalog dimensions via image_urls", async () => {
-    const calls: any[] = [];
-    await generateWithFal("fal-ai/firered-image-edit", BASE_INPUT, {
-      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
-    });
-    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
-    expect(calls[0][1].input.image_urls).toHaveLength(1);
-  });
 
   it("gpt-image-2 gets the canonical portrait size and medium quality", async () => {
     const calls: any[] = [];
@@ -132,7 +93,7 @@ describe("generateWithFal", () => {
 
   it("throws a Ukrainian error when no image comes back", async () => {
     await expect(
-      generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
+      generateWithFal("fal-ai/bytedance/seedream/v4.5/edit", BASE_INPUT, {
         subscribe: fakeSubscribe(undefined, []),
       })
     ).rejects.toThrow(/не повернула зображення/);
@@ -167,17 +128,6 @@ describe("generateWithFal", () => {
     expect(urls[2]).toContain("c3dhdGNo"); // swatch last
   });
 
-  it("flux-2 (cap 4) keeps main + ref + extra + swatch exactly", async () => {
-    const calls: any[] = [];
-    const swatch = { data: "c3dhdGNo", mimeType: "image/png" };
-    const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
-    await generateWithFal(
-      "fal-ai/flux-2/edit",
-      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra], backgroundSwatch: swatch },
-      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
-    );
-    expect(calls[0][1].input.image_urls).toHaveLength(4);
-  });
 
   it("seedream (cap 10) carries main + ref + 4 extras + swatch untrimmed", async () => {
     const calls: any[] = [];
@@ -202,7 +152,7 @@ describe("generateWithFal", () => {
     };
     const upload = vi.fn(async () => "https://fal.storage/big.png");
     await generateWithFal(
-      "fal-ai/flux-2/edit",
+      "fal-ai/bytedance/seedream/v4.5/edit",
       { ...BASE_INPUT, mainImage: bigImage, referenceImage: REF },
       { subscribe: fakeSubscribe(DATA_URI_RESULT, calls), upload }
     );
@@ -216,7 +166,7 @@ describe("generateWithFal", () => {
   it("throws a Ukrainian error when FAL_KEY is missing", async () => {
     vi.stubEnv("FAL_KEY", "");
     await expect(
-      generateWithFal("fal-ai/flux-2/edit", BASE_INPUT, {
+      generateWithFal("fal-ai/bytedance/seedream/v4.5/edit", BASE_INPUT, {
         subscribe: fakeSubscribe(DATA_URI_RESULT, []),
       })
     ).rejects.toThrow(/FAL_KEY не налаштовано/);
