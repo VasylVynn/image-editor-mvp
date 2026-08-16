@@ -81,8 +81,8 @@ function endpointInput(
       !width || !height ? "auto" : height > width ? "1024x1536" : width > height ? "1536x1024" : "1024x1024";
     return { ...base, image_size: size, quality: "medium" };
   }
-  // Nano Banana family: aspect_ratio enum + resolution.
-  return { ...base, aspect_ratio: input.aspectRatio, resolution: "2K" };
+  // Nano Banana family: aspect_ratio enum + resolution tier.
+  return { ...base, aspect_ratio: input.aspectRatio, resolution: input.imageSize ?? "2K" };
 }
 
 export async function falFileToImageInput(file: FalImageFile): Promise<ImageInput> {

@@ -5,8 +5,12 @@ export interface Engine {
   label: string;
   provider: "gemini" | "fal";
   falEndpoint?: string;
-  /** Output size for the Gemini provider ("1K" | "2K" | "4K"), default 2K. */
-  geminiImageSize?: string;
+  /** Output size tier ("0.5K" | "1K" | "2K" | "4K"); default 2K. Applies to
+   *  the Gemini provider and to fal Nano Banana endpoints. */
+  imageSize?: string;
+  /** Upscale the generated result with the cheap Recraft upscaler — used by
+   *  engines whose cheaper tier outputs below the catalog target size. */
+  postUpscale?: boolean;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -23,22 +27,15 @@ export const ENGINES: Engine[] = [
       "Основна модель Google (2K). Найкраще розуміє складні інструкції та аналіз деталей.",
   },
   {
-    id: "gemini-1k",
-    label: "Gemini NB Pro 1K",
-    provider: "gemini",
-    geminiImageSize: "1K",
-    price: "~$0.13",
-    description:
-      "Той самий Nano Banana Pro, але вихід ~896×1200 (трохи менше таргета). Ціна та ж — пункт для проби якості/швидкості.",
-  },
-  {
     id: "fal-nano-banana-2",
     label: "Nano Banana 2 (fal)",
     provider: "fal",
     falEndpoint: "fal-ai/nano-banana-2/edit",
-    price: "~$0.12",
+    imageSize: "1K",
+    postUpscale: true,
+    price: "~$0.084",
     description:
-      "Новіше покоління тієї ж сім'ї Google, через fal (2K: $0.08 × 1.5). Варто порівняти з основною.",
+      "Новіше покоління сім'ї Google. 1K ($0.08) + авто-апскейл Recraft (+$0.004) до повного розміру — замість $0.12 за 2K.",
   },
   {
     id: "fal-seedream",

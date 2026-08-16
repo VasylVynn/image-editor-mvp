@@ -174,6 +174,19 @@ describe("POST /api/process", () => {
     expect(body.image).toBe("data:image/png;base64,ZmFs");
   });
 
+  it("nano-banana-2 runs at 1K and gets post-upscaled to full size", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), model: "fal-nano-banana-2" }));
+    expect(res.status).toBe(200);
+    const falArg = vi.mocked(generateWithFal).mock.calls[0][1];
+    expect(falArg.imageSize).toBe("1K");
+    expect(upscaleImage).toHaveBeenCalledWith(
+      "fal-ai/recraft/upscale/crisp",
+      expect.objectContaining({ data: "ZmFs" }) // the generated result, not the source
+    );
+    const body = await res.json();
+    expect(body.image).toBe("data:image/png;base64,YmlnZ2Vy"); // upscaled bytes
+  });
+
   it("unknown model id falls back to the Gemini engine", async () => {
     const res = await POST(makeRequest({ image: pngFile(), model: "nope" }));
     expect(res.status).toBe(200);

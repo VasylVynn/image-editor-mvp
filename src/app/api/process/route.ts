@@ -113,11 +113,22 @@ async function runAnalysisAndGeneration(input: {
     targetWidth: input.preset.width,
     targetHeight: input.preset.height,
     backgroundSwatch: isFal ? colorSwatchImage(input.preset.background) : undefined,
-    imageSize: input.engine.geminiImageSize,
+    imageSize: input.engine.imageSize,
   };
-  const result = isFal
+  let result = isFal
     ? await generateWithFal(input.engine.falEndpoint!, generateInput)
     : await generateImage(generateInput);
+
+  // Engines on a cheaper sub-target output tier get the result upscaled with
+  // the near-free Recraft upscaler to reach full catalog size. Soft-fails —
+  // the smaller image is still usable.
+  if (input.engine.postUpscale) {
+    try {
+      result = await upscaleImage(getUpscaler("recraft").falEndpoint, result);
+    } catch (err) {
+      console.error("Post-upscale failed, keeping the generated size:", err);
+    }
+  }
 
   return { prompt, result, analysis, analysisFailed, upscaleFailed };
 }
