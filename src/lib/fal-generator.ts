@@ -70,10 +70,6 @@ function endpointInput(
     // v4.x wants dimensions ≥1024; doubling the catalog size keeps the ratio.
     return { ...base, image_size: { width: width * 2, height: height * 2 } };
   }
-  if (endpoint.includes("qwen")) {
-    // Accepts exact pixel dimensions; catalog sizes fit directly.
-    return width && height ? { ...base, image_size: { width, height } } : base;
-  }
   if (endpoint.includes("gpt-image")) {
     // GPT Image only knows three canonical sizes; pick by orientation.
     // quality "medium" is this engine entry's whole point (4× cheaper than high).
@@ -111,7 +107,7 @@ export async function generateWithFal(
   // Per-endpoint input image caps (verified in fal docs): main image and the
   // color swatch always survive; optional references get trimmed first (the
   // original product reference before the operator's extra one).
-  const maxImages = endpoint.includes("qwen") ? 3 : 10;
+  const maxImages = 10;
   const optional: ImageInput[] = [
     ...(input.referenceImage ? [input.referenceImage] : []),
     ...(input.extraImages ?? []),

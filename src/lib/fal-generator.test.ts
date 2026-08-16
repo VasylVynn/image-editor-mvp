@@ -83,13 +83,6 @@ describe("generateWithFal", () => {
     expect(calls[0][1].input.quality).toBe("medium");
   });
 
-  it("qwen gets exact catalog dimensions", async () => {
-    const calls: any[] = [];
-    await generateWithFal("fal-ai/qwen-image-2/pro/edit", BASE_INPUT, {
-      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
-    });
-    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
-  });
 
   it("throws a Ukrainian error when no image comes back", async () => {
     await expect(
@@ -112,21 +105,6 @@ describe("generateWithFal", () => {
     expect(urls[2]).toBe("data:image/png;base64,c3dhdGNo");
   });
 
-  it("qwen (cap 3) drops the product reference first, keeping main + extra + swatch", async () => {
-    const calls: any[] = [];
-    const swatch = { data: "c3dhdGNo", mimeType: "image/png" };
-    const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
-    await generateWithFal(
-      "fal-ai/qwen-image-2/pro/edit",
-      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra], backgroundSwatch: swatch },
-      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
-    );
-    const urls = calls[0][1].input.image_urls;
-    expect(urls).toHaveLength(3);
-    expect(urls[0]).toContain("bWFpbg=="); // main
-    expect(urls[1]).toContain("ZXh0cmE="); // extra survived, ref dropped
-    expect(urls[2]).toContain("c3dhdGNo"); // swatch last
-  });
 
 
   it("seedream (cap 10) carries main + ref + 4 extras + swatch untrimmed", async () => {

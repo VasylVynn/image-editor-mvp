@@ -60,14 +60,6 @@ export const ENGINES: Engine[] = [
       "Точкове редагування: міняє потрібне, тримає решту кадру недоторканою. Головний кандидат на якість.",
   },
   {
-    id: "fal-qwen-2-pro",
-    label: "Qwen Image 2 Pro (fal)",
-    provider: "fal",
-    falEndpoint: "fal-ai/qwen-image-2/pro/edit",
-    price: "$0.075",
-    description: "Alibaba. Дуже точно слідує інструкціям, сильна з текстом і принтами.",
-  },
-  {
     id: "fal-gpt-image-2-medium",
     label: "GPT Image 2 medium (fal)",
     provider: "fal",
