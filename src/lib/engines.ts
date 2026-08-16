@@ -8,9 +8,6 @@ export interface Engine {
   /** Output size tier ("0.5K" | "1K" | "2K" | "4K"); default 2K. Applies to
    *  the Gemini provider and to fal Nano Banana endpoints. */
   imageSize?: string;
-  /** Upscale the generated result with the cheap Recraft upscaler — used by
-   *  engines whose cheaper tier outputs below the catalog target size. */
-  postUpscale?: boolean;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -32,10 +29,9 @@ export const ENGINES: Engine[] = [
     provider: "fal",
     falEndpoint: "fal-ai/nano-banana-2/edit",
     imageSize: "1K",
-    postUpscale: true,
-    price: "~$0.084",
+    price: "$0.08",
     description:
-      "Новіше покоління сім'ї Google. 1K ($0.08) + авто-апскейл Recraft (+$0.004) до повного розміру — замість $0.12 за 2K.",
+      "Новіше покоління сім'ї Google. 1K (~896×1200 — трохи менше таргета) за $0.08 замість $0.12 за 2K.",
   },
   {
     id: "fal-seedream",
