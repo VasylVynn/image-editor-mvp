@@ -19,6 +19,8 @@ export interface GenerateInput {
   backgroundSwatch?: ImageInput;
   /** Gemini output size tier; defaults to "2K". */
   imageSize?: string;
+  /** Quality tier for GPT Image endpoints; defaults to "medium". */
+  quality?: string;
 }
 
 export async function generateImage(

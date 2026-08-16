@@ -183,6 +183,12 @@ describe("POST /api/process", () => {
     expect((await res.json()).image).toBe("data:image/png;base64,ZmFs");
   });
 
+  it("gpt-image-2 high engine passes its quality tier through", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), model: "fal-gpt-image-2-high" }));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(generateWithFal).mock.calls[0][1].quality).toBe("high");
+  });
+
   it("nano-banana-2 (gemini family) gets hex color wording and no swatch", async () => {
     const res = await POST(makeRequest({ image: pngFile(), model: "fal-nano-banana-2" }));
     expect(res.status).toBe(200);

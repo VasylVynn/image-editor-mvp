@@ -12,6 +12,8 @@ export interface Engine {
    *  ("reference", fal default) or hex in the prompt text ("hex" — what the
    *  Gemini family follows best; the swatch confuses it). */
   colorMode?: "hex" | "reference";
+  /** Quality tier for GPT Image endpoints ("low" | "medium" | "high"). */
+  quality?: string;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -69,9 +71,20 @@ export const ENGINES: Engine[] = [
     label: "GPT Image 2 medium (fal)",
     provider: "fal",
     falEndpoint: "openai/gpt-image-2/edit",
+    quality: "medium",
     price: "~$0.04",
     description:
       "OpenAI — та сама лінійка, що в ChatGPT, але quality medium: у 4 рази дешевше за high. Вихід 1024×1536.",
+  },
+  {
+    id: "fal-gpt-image-2-high",
+    label: "GPT Image 2 high (fal)",
+    provider: "fal",
+    falEndpoint: "openai/gpt-image-2/edit",
+    quality: "high",
+    price: "~$0.13",
+    description:
+      "Та сама якість, що в ChatGPT (high). Найточніше промальовування принтів у лінійці OpenAI.",
   },
 ];
 

@@ -82,7 +82,7 @@ function endpointInput(
           : width > height
             ? "landscape_4_3"
             : "square_hd";
-    return { ...base, image_size: size, quality: "medium" };
+    return { ...base, image_size: size, quality: input.quality ?? "medium" };
   }
   // Nano Banana family: aspect_ratio enum + resolution tier.
   return { ...base, aspect_ratio: input.aspectRatio, resolution: input.imageSize ?? "2K" };
