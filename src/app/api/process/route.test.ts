@@ -183,6 +183,15 @@ describe("POST /api/process", () => {
     expect((await res.json()).image).toBe("data:image/png;base64,ZmFs");
   });
 
+  it("nano-banana-2 (gemini family) gets hex color wording and no swatch", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), model: "fal-nano-banana-2" }));
+    expect(res.status).toBe(200);
+    const falArg = vi.mocked(generateWithFal).mock.calls[0][1];
+    expect(falArg.backgroundSwatch).toBeUndefined();
+    expect(falArg.prompt).toContain("#E9E9E9");
+    expect(falArg.prompt).not.toContain("last attached image");
+  });
+
   it("unknown model id falls back to the Gemini engine", async () => {
     const res = await POST(makeRequest({ image: pngFile(), model: "nope" }));
     expect(res.status).toBe(200);

@@ -8,6 +8,10 @@ export interface Engine {
   /** Output size tier ("0.5K" | "1K" | "2K" | "4K"); default 2K. Applies to
    *  the Gemini provider and to fal Nano Banana endpoints. */
   imageSize?: string;
+  /** How the background color reaches the model: attached swatch image
+   *  ("reference", fal default) or hex in the prompt text ("hex" — what the
+   *  Gemini family follows best; the swatch confuses it). */
+  colorMode?: "hex" | "reference";
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -29,9 +33,10 @@ export const ENGINES: Engine[] = [
     provider: "fal",
     falEndpoint: "fal-ai/nano-banana-2/edit",
     imageSize: "1K",
+    colorMode: "hex",
     price: "$0.08",
     description:
-      "Новіше покоління сім'ї Google. 1K (~896×1200 — трохи менше таргета) за $0.08 замість $0.12 за 2K.",
+      "Новіше покоління сім'ї Google. 1K (~896×1200) за $0.08. Фон hex-текстом, як у Gemini — без свотча.",
   },
   {
     id: "fal-seedream",

@@ -96,8 +96,10 @@ async function runAnalysisAndGeneration(input: {
 
   // fal engines get the background as an attached color swatch instead of a
   // hex code in text — Seedream misreads hex (painted "#E99999" onto one run).
+  // Gemini-family engines are the exception: they follow hex text well and
+  // the swatch image only confuses them (engine.colorMode === "hex").
   const isFal = input.engine.provider === "fal";
-  const useSwatch = isFal;
+  const useSwatch = isFal && input.engine.colorMode !== "hex";
   const prompt = buildPrompt({
     preset: input.preset,
     analysis: analysis ?? undefined,
