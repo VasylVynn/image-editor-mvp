@@ -225,6 +225,7 @@ export async function POST(request: Request) {
       analysis: generation.analysis,
       analysisFailed: generation.analysisFailed,
       upscaleFailed: generation.upscaleFailed,
+      model: engine.id,
     });
   } catch (error) {
     console.error("Processing error:", error);
