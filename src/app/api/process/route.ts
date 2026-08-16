@@ -113,6 +113,7 @@ async function runAnalysisAndGeneration(input: {
     targetWidth: input.preset.width,
     targetHeight: input.preset.height,
     backgroundSwatch: isFal ? colorSwatchImage(input.preset.background) : undefined,
+    imageSize: input.engine.geminiImageSize,
   };
   const result = isFal
     ? await generateWithFal(input.engine.falEndpoint!, generateInput)

@@ -17,6 +17,8 @@ export interface GenerateInput {
   /** Solid-color swatch attached as the last reference image for engines that
    *  misread hex codes in text prompts (see prompt-builder colorMode). */
   backgroundSwatch?: ImageInput;
+  /** Gemini output size tier; defaults to "2K". */
+  imageSize?: string;
 }
 
 export async function generateImage(
@@ -40,7 +42,7 @@ export async function generateImage(
     contents: [{ role: "user", parts }],
     config: {
       responseModalities: ["IMAGE", "TEXT"],
-      imageConfig: { aspectRatio: input.aspectRatio, imageSize: "2K" },
+      imageConfig: { aspectRatio: input.aspectRatio, imageSize: input.imageSize ?? "2K" },
     },
   });
 

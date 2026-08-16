@@ -5,6 +5,8 @@ export interface Engine {
   label: string;
   provider: "gemini" | "fal";
   falEndpoint?: string;
+  /** Output size for the Gemini provider ("1K" | "2K" | "4K"), default 2K. */
+  geminiImageSize?: string;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
   /** One-line Ukrainian description for the UI. */
@@ -19,6 +21,15 @@ export const ENGINES: Engine[] = [
     price: "~$0.13",
     description:
       "Основна модель Google (2K). Найкраще розуміє складні інструкції та аналіз деталей.",
+  },
+  {
+    id: "gemini-1k",
+    label: "Gemini NB Pro 1K",
+    provider: "gemini",
+    geminiImageSize: "1K",
+    price: "~$0.13",
+    description:
+      "Той самий Nano Banana Pro, але вихід ~896×1200 (трохи менше таргета). Ціна та ж — пункт для проби якості/швидкості.",
   },
   {
     id: "fal-nano-banana-2",

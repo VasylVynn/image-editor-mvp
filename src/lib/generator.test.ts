@@ -52,6 +52,19 @@ describe("generateImage", () => {
     ).rejects.toThrow(/I cannot do that/);
   });
 
+  it("passes a custom imageSize tier through, defaulting to 2K", async () => {
+    const calls: any[] = [];
+    const ai = () =>
+      fakeAI([{ inlineData: { data: "eA==", mimeType: "image/png" } }], calls);
+    await generateImage({ mainImage: MAIN, prompt: "edit", aspectRatio: "3:4" }, { genAI: ai });
+    expect(calls[0].config.imageConfig.imageSize).toBe("2K");
+    await generateImage(
+      { mainImage: MAIN, prompt: "edit", aspectRatio: "3:4", imageSize: "1K" },
+      { genAI: ai }
+    );
+    expect(calls[1].config.imageConfig.imageSize).toBe("1K");
+  });
+
   it("defaults mimeType to image/png when missing", async () => {
     const out = await generateImage(
       { mainImage: MAIN, prompt: "edit", aspectRatio: "3:4" },
