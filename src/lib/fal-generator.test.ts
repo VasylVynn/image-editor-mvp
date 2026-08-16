@@ -79,6 +79,40 @@ describe("generateWithFal", () => {
     expect(calls[0][1].input.image_size).toEqual({ width: 1200, height: 1600 });
   });
 
+  it("kontext takes a single image_url and drops every other reference", async () => {
+    const calls: any[] = [];
+    const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
+    await generateWithFal(
+      "fal-ai/flux-pro/kontext",
+      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra] },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
+    );
+    const inp = calls[0][1].input;
+    expect(inp.image_url).toBe("data:image/jpeg;base64,bWFpbg==");
+    expect(inp.image_urls).toBeUndefined();
+    expect(inp.aspect_ratio).toBe("3:4");
+  });
+
+  it("hidream sends reference_image_urls with exact dimensions", async () => {
+    const calls: any[] = [];
+    await generateWithFal("fal-ai/hidream-o1-image/dev/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    const inp = calls[0][1].input;
+    expect(inp.reference_image_urls).toEqual(["data:image/jpeg;base64,bWFpbg=="]);
+    expect(inp.image_urls).toBeUndefined();
+    expect(inp.image_size).toEqual({ width: 940, height: 1300 });
+  });
+
+  it("firered gets exact catalog dimensions via image_urls", async () => {
+    const calls: any[] = [];
+    await generateWithFal("fal-ai/firered-image-edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toEqual({ width: 940, height: 1300 });
+    expect(calls[0][1].input.image_urls).toHaveLength(1);
+  });
+
   it("gpt-image-2 gets the canonical portrait size and medium quality", async () => {
     const calls: any[] = [];
     await generateWithFal("openai/gpt-image-2/edit", BASE_INPUT, {

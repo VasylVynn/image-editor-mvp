@@ -96,13 +96,16 @@ async function runAnalysisAndGeneration(input: {
 
   // fal engines get the background as an attached color swatch instead of a
   // hex code in text — Seedream misreads hex (painted "#E99999" onto one run).
+  // Single-image endpoints (Kontext) can't take a swatch, so they fall back
+  // to the hex wording like Gemini.
   const isFal = input.engine.provider === "fal";
+  const useSwatch = isFal && !input.engine.singleImage;
   const prompt = buildPrompt({
     preset: input.preset,
     analysis: analysis ?? undefined,
     note: input.note,
-    extraReferenceCount: input.extraImages?.length ?? 0,
-    colorMode: isFal ? "reference" : "hex",
+    extraReferenceCount: input.engine.singleImage ? 0 : input.extraImages?.length ?? 0,
+    colorMode: useSwatch ? "reference" : "hex",
   });
   const generateInput = {
     mainImage,
@@ -112,7 +115,7 @@ async function runAnalysisAndGeneration(input: {
     aspectRatio: input.preset.aspectRatio,
     targetWidth: input.preset.width,
     targetHeight: input.preset.height,
-    backgroundSwatch: isFal ? colorSwatchImage(input.preset.background) : undefined,
+    backgroundSwatch: useSwatch ? colorSwatchImage(input.preset.background) : undefined,
     imageSize: input.engine.imageSize,
   };
   const result = isFal
