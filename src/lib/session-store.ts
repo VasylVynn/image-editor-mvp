@@ -13,7 +13,9 @@ export interface PersistedSession {
   mode: "file" | "url";
   main: PersistedFile | null;
   ref: PersistedFile | null;
+  /** Legacy single-slot field from older sessions. */
   extra?: PersistedFile | null;
+  extras?: PersistedFile[];
   productTitle: string | null;
   productSku: string | null;
   galleryImages: string[];

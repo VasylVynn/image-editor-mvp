@@ -66,7 +66,7 @@ async function runAnalysisAndGeneration(input: {
   note?: string;
   engine: Engine;
   upscaler?: Upscaler;
-  extraImage?: ImageInput;
+  extraImages?: ImageInput[];
 }): Promise<GenerationOutput> {
   // Optional pre-step: upscale the (often tiny) source photo so the generator
   // and analyzer work from more pixels. Soft-fails like analysis — the
@@ -101,13 +101,13 @@ async function runAnalysisAndGeneration(input: {
     preset: input.preset,
     analysis: analysis ?? undefined,
     note: input.note,
-    hasExtraReference: !!input.extraImage,
+    extraReferenceCount: input.extraImages?.length ?? 0,
     colorMode: isFal ? "reference" : "hex",
   });
   const generateInput = {
     mainImage,
     referenceImage: input.referenceImage,
-    extraImage: input.extraImage,
+    extraImages: input.extraImages,
     prompt,
     aspectRatio: input.preset.aspectRatio,
     targetWidth: input.preset.width,
@@ -188,19 +188,22 @@ export async function POST(request: Request) {
       referenceImage = await downloadImage(referenceUrl, undefined, request.signal);
     }
 
-    // Optional extra reference added at regenerate time.
-    const extraFile = formData.get("extra") as File | null;
-    let extraImage: ImageInput | undefined;
-    if (extraFile) {
+    // Optional extra references added at regenerate time (up to 4).
+    const extraFiles = formData
+      .getAll("extra")
+      .filter((entry): entry is File => entry instanceof File)
+      .slice(0, 4);
+    const extraImages: ImageInput[] = [];
+    for (const extraFile of extraFiles) {
       const extraError = validateFile(extraFile, "Додаткове фото");
       if (extraError) return extraError;
-      extraImage = await toImageInput(extraFile);
+      extraImages.push(await toImageInput(extraFile));
     }
 
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
-        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler, extraImage }),
+        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler, extraImages }),
         GENERATION_TIMEOUT_MS,
         `Generation timeout after ${GENERATION_TIMEOUT_MS}ms`
       );

@@ -114,7 +114,7 @@ describe("generateWithFal", () => {
     const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
     await generateWithFal(
       "fal-ai/qwen-image-2/pro/edit",
-      { ...BASE_INPUT, referenceImage: REF, extraImage: extra, backgroundSwatch: swatch },
+      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra], backgroundSwatch: swatch },
       { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
     );
     const urls = calls[0][1].input.image_urls;
@@ -130,10 +130,25 @@ describe("generateWithFal", () => {
     const extra = { data: "ZXh0cmE=", mimeType: "image/png" };
     await generateWithFal(
       "fal-ai/flux-2/edit",
-      { ...BASE_INPUT, referenceImage: REF, extraImage: extra, backgroundSwatch: swatch },
+      { ...BASE_INPUT, referenceImage: REF, extraImages: [extra], backgroundSwatch: swatch },
       { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
     );
     expect(calls[0][1].input.image_urls).toHaveLength(4);
+  });
+
+  it("seedream (cap 10) carries main + ref + 4 extras + swatch untrimmed", async () => {
+    const calls: any[] = [];
+    const swatch = { data: "c3dhdGNo", mimeType: "image/png" };
+    const extras = Array.from({ length: 4 }, (_, i) => ({
+      data: Buffer.from(`extra${i}`).toString("base64"),
+      mimeType: "image/png",
+    }));
+    await generateWithFal(
+      "bytedance/seedream/v5/pro/edit",
+      { ...BASE_INPUT, referenceImage: REF, extraImages: extras, backgroundSwatch: swatch },
+      { subscribe: fakeSubscribe(DATA_URI_RESULT, calls) }
+    );
+    expect(calls[0][1].input.image_urls).toHaveLength(7);
   });
 
   it("uploads oversized images to fal storage instead of inlining them", async () => {

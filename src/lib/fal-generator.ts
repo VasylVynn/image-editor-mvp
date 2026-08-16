@@ -107,7 +107,7 @@ export async function generateWithFal(
   const maxImages = endpoint.includes("qwen") ? 3 : endpoint.includes("flux-2") ? 4 : 10;
   const optional: ImageInput[] = [
     ...(input.referenceImage ? [input.referenceImage] : []),
-    ...(input.extraImage ? [input.extraImage] : []),
+    ...(input.extraImages ?? []),
   ];
   const reservedSlots = 1 + (input.backgroundSwatch ? 1 : 0);
   while (optional.length > maxImages - reservedSlots) optional.shift();

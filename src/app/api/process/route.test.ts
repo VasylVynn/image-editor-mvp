@@ -181,12 +181,25 @@ describe("POST /api/process", () => {
     expect(generateWithFal).not.toHaveBeenCalled();
   });
 
-  it("passes the extra reference through to generation and flags it in the prompt", async () => {
-    const res = await POST(makeRequest({ image: pngFile(), extra: pngFile() }));
+  it("passes extra references through to generation and flags them in the prompt", async () => {
+    const fd = new FormData();
+    fd.append("image", pngFile());
+    fd.append("extra", pngFile());
+    fd.append("extra", pngFile());
+    const res = await POST(new Request("http://localhost/api/process", { method: "POST", body: fd }));
     expect(res.status).toBe(200);
     const arg = vi.mocked(generateImage).mock.calls[0][0];
-    expect(arg.extraImage).toBeTruthy();
-    expect(arg.prompt).toContain("additional reference image");
+    expect(arg.extraImages).toHaveLength(2);
+    expect(arg.prompt).toContain("2 additional reference images");
+  });
+
+  it("caps extra references at 4", async () => {
+    const fd = new FormData();
+    fd.append("image", pngFile());
+    for (let i = 0; i < 6; i++) fd.append("extra", pngFile());
+    const res = await POST(new Request("http://localhost/api/process", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(generateImage).mock.calls[0][0].extraImages).toHaveLength(4);
   });
 
   it("upscales the main image before generation when upscale=true", async () => {

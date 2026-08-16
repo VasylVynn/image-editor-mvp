@@ -4,8 +4,8 @@ export interface PromptInput {
   preset: Preset;
   analysis?: string;
   note?: string;
-  /** An operator-supplied extra reference image is attached. */
-  hasExtraReference?: boolean;
+  /** Number of operator-supplied extra reference images attached. */
+  extraReferenceCount?: number;
   /** "hex": state the background as a hex code (Gemini follows it fine).
    *  "reference": refer to an attached solid-color swatch image instead —
    *  Seedream/FLUX misread hex codes in text (one run painted "#E99999"
@@ -21,7 +21,7 @@ export function buildPrompt({
   preset,
   analysis,
   note,
-  hasExtraReference,
+  extraReferenceCount = 0,
   colorMode = "hex",
 }: PromptInput): string {
   // The format header is English on purpose: non-Google engines follow
@@ -46,10 +46,10 @@ export function buildPrompt({
       `Обов'язково збережи ці деталі без змін (з аналізу фото):\n${analysis.trim()}`
     );
   }
-  if (hasExtraReference) {
+  if (extraReferenceCount > 0) {
     sections.push(
-      "An additional reference image is attached by the operator; use it as guidance " +
-        "according to the operator instruction below."
+      `${extraReferenceCount === 1 ? "An additional reference image is" : `${extraReferenceCount} additional reference images are`} ` +
+        "attached by the operator; use them as guidance according to the operator instruction below."
     );
   }
   if (note?.trim()) {

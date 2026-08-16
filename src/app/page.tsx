@@ -41,8 +41,9 @@ export default function Home() {
 
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [refFile, setRefFile] = useState<File | null>(null);
-  // Extra reference the operator can attach in the result view for a regenerate.
-  const [extraFile, setExtraFile] = useState<File | null>(null);
+  // Extra references (up to 4) the operator can attach in the result view.
+  const MAX_EXTRA_FILES = 4;
+  const [extraFiles, setExtraFiles] = useState<File[]>([]);
 
   // URL-mode: product page fetch + gallery selection.
   const [productTitle, setProductTitle] = useState<string | null>(null);
@@ -142,9 +143,10 @@ export default function Home() {
       if (session.ref) {
         setRefFile(new File([session.ref.blob], session.ref.name, { type: session.ref.type }));
       }
-      if (session.extra) {
-        setExtraFile(new File([session.extra.blob], session.extra.name, { type: session.extra.type }));
-      }
+      const persistedExtras = session.extras ?? (session.extra ? [session.extra] : []);
+      setExtraFiles(
+        persistedExtras.map((f) => new File([f.blob], f.name, { type: f.type }))
+      );
       setSavedPath(session.savedPath);
       updateResult(session.result);
       setStage("done");
@@ -164,7 +166,7 @@ export default function Home() {
       mode,
       main: mainFile ? { blob: mainFile, name: mainFile.name, type: mainFile.type } : null,
       ref: refFile ? { blob: refFile, name: refFile.name, type: refFile.type } : null,
-      extra: extraFile ? { blob: extraFile, name: extraFile.name, type: extraFile.type } : null,
+      extras: extraFiles.map((f) => ({ blob: f, name: f.name, type: f.type })),
       productTitle,
       productSku,
       galleryImages,
@@ -173,7 +175,7 @@ export default function Home() {
       result,
       savedPath,
     });
-  }, [result, stage, savedPath, mode, mainFile, refFile, extraFile, productTitle, productSku, galleryImages, mainUrl, refUrl]);
+  }, [result, stage, savedPath, mode, mainFile, refFile, extraFiles, productTitle, productSku, galleryImages, mainUrl, refUrl]);
 
   // Keep object URLs for the compare view in sync with the selected files.
   useEffect(() => {
@@ -196,16 +198,12 @@ export default function Home() {
     return () => URL.revokeObjectURL(url);
   }, [refFile]);
 
-  const [extraPreviewUrl, setExtraPreviewUrl] = useState<string | null>(null);
+  const [extraPreviewUrls, setExtraPreviewUrls] = useState<string[]>([]);
   useEffect(() => {
-    if (!extraFile) {
-      setExtraPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(extraFile);
-    setExtraPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [extraFile]);
+    const urls = extraFiles.map((file) => URL.createObjectURL(file));
+    setExtraPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [extraFiles]);
 
   // URL mode uses the remote URLs directly — no object URL lifecycle needed.
   const originalUrl = mode === "file" ? fileOriginalUrl : mainUrl;
@@ -270,7 +268,7 @@ export default function Home() {
       formData.append("model", engineId);
       formData.append("upscale", String(upscale));
       formData.append("upscaler", upscalerId);
-      if (extraFile) formData.append("extra", extraFile);
+      extraFiles.forEach((file) => formData.append("extra", file));
 
       const response = await fetch("/api/process", {
         method: "POST",
@@ -295,7 +293,7 @@ export default function Home() {
       // a failed regenerate shouldn't throw away an already-paid-for image.
       setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, extraFile, mainUrl, refUrl, note, presetId, analyze, engineId, upscale, upscalerId, updateResult]);
+  }, [mode, mainFile, refFile, extraFiles, mainUrl, refUrl, note, presetId, analyze, engineId, upscale, upscalerId, updateResult]);
 
   // Cancels an in-flight request and returns to a sane state. The fetch's own
   // AbortError branch above is a no-op, so this is the sole place that decides
@@ -312,7 +310,7 @@ export default function Home() {
     abortControllerRef.current?.abort();
     setMainFile(null);
     setRefFile(null);
-    setExtraFile(null);
+    setExtraFiles([]);
     setProductTitle(null);
     setProductSku(null);
     setGalleryImages([]);
@@ -607,34 +605,45 @@ export default function Home() {
                     placeholder="Що виправити при перегенерації: напр. прибери вішак"
                     className="flex-1 min-w-[260px] border border-gray-300 rounded-lg px-3 py-3 text-sm bg-white text-gray-900 placeholder-gray-400"
                   />
-                  {extraFile ? (
-                    <span className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 bg-white text-sm text-gray-700">
-                      {extraPreviewUrl && (
+                  {extraFiles.map((file, index) => (
+                    <span
+                      key={`${file.name}-${index}`}
+                      className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 bg-white text-sm text-gray-700"
+                    >
+                      {extraPreviewUrls[index] && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={extraPreviewUrl}
-                          alt="Додаткове фото"
+                          src={extraPreviewUrls[index]}
+                          alt={`Додаткове фото ${index + 1}`}
                           className="h-9 w-9 object-cover rounded"
                         />
                       )}
                       <button
-                        onClick={() => setExtraFile(null)}
+                        onClick={() =>
+                          setExtraFiles((prev) => prev.filter((_, i) => i !== index))
+                        }
                         title="Прибрати додаткове фото"
                         className="text-gray-400 hover:text-red-600"
                       >
                         ✕
                       </button>
                     </span>
-                  ) : (
+                  ))}
+                  {extraFiles.length < MAX_EXTRA_FILES && (
                     <label className="flex items-center px-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
                       + Дод. фото
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
+                        multiple
                         className="hidden"
                         onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) setExtraFile(file);
+                          const files = Array.from(e.target.files ?? []);
+                          if (files.length) {
+                            setExtraFiles((prev) =>
+                              [...prev, ...files].slice(0, MAX_EXTRA_FILES)
+                            );
+                          }
                           e.target.value = "";
                         }}
                       />
