@@ -9,8 +9,8 @@ describe("engines", () => {
 
   it("every fal engine carries a falEndpoint", () => {
     for (const engine of ENGINES.filter((e) => e.provider === "fal")) {
-      // Newer fal listings (e.g. bytedance/seedream/v5) drop the fal-ai/ prefix.
-      expect(engine.falEndpoint).toMatch(/^(fal-ai|bytedance)\//);
+      // Newer fal listings (bytedance/seedream/v5, openai/gpt-image-2) drop the fal-ai/ prefix.
+      expect(engine.falEndpoint).toMatch(/^(fal-ai|bytedance|openai)\//);
     }
   });
 

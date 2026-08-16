@@ -72,6 +72,15 @@ export const ENGINES: Engine[] = [
     price: "$0.075",
     description: "Alibaba. Дуже точно слідує інструкціям, сильна з текстом і принтами.",
   },
+  {
+    id: "fal-gpt-image-2-medium",
+    label: "GPT Image 2 medium (fal)",
+    provider: "fal",
+    falEndpoint: "openai/gpt-image-2/edit",
+    price: "~$0.04",
+    description:
+      "OpenAI — та сама лінійка, що в ChatGPT, але quality medium: у 4 рази дешевше за high. Вихід 1024×1536.",
+  },
 ];
 
 // Unknown/missing id falls back to the default engine — old clients keep working.

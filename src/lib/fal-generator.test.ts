@@ -79,6 +79,15 @@ describe("generateWithFal", () => {
     expect(calls[0][1].input.image_size).toEqual({ width: 1200, height: 1600 });
   });
 
+  it("gpt-image-2 gets the canonical portrait size and medium quality", async () => {
+    const calls: any[] = [];
+    await generateWithFal("openai/gpt-image-2/edit", BASE_INPUT, {
+      subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
+    });
+    expect(calls[0][1].input.image_size).toBe("1024x1536");
+    expect(calls[0][1].input.quality).toBe("medium");
+  });
+
   it("qwen gets exact catalog dimensions", async () => {
     const calls: any[] = [];
     await generateWithFal("fal-ai/qwen-image-2/pro/edit", BASE_INPUT, {

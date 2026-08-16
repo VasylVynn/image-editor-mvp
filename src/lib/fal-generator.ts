@@ -74,6 +74,13 @@ function endpointInput(
     // Both accept exact pixel dimensions; catalog sizes fit directly.
     return width && height ? { ...base, image_size: { width, height } } : base;
   }
+  if (endpoint.includes("gpt-image")) {
+    // GPT Image only knows three canonical sizes; pick by orientation.
+    // quality "medium" is this engine entry's whole point (4× cheaper than high).
+    const size =
+      !width || !height ? "auto" : height > width ? "1024x1536" : width > height ? "1536x1024" : "1024x1024";
+    return { ...base, image_size: size, quality: "medium" };
+  }
   // Nano Banana family: aspect_ratio enum + resolution.
   return { ...base, aspect_ratio: input.aspectRatio, resolution: "2K" };
 }
