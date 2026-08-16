@@ -71,10 +71,17 @@ function endpointInput(
     return { ...base, image_size: { width: width * 2, height: height * 2 } };
   }
   if (endpoint.includes("gpt-image")) {
-    // GPT Image only knows three canonical sizes; pick by orientation.
+    // fal's GPT Image wrapper takes its standard ImageSize enum, picked by
+    // orientation (422 "should be 'square_hd', ..." on anything else).
     // quality "medium" is this engine entry's whole point (4× cheaper than high).
     const size =
-      !width || !height ? "auto" : height > width ? "1024x1536" : width > height ? "1536x1024" : "1024x1024";
+      !width || !height
+        ? "auto"
+        : height > width
+          ? "portrait_4_3"
+          : width > height
+            ? "landscape_4_3"
+            : "square_hd";
     return { ...base, image_size: size, quality: "medium" };
   }
   // Nano Banana family: aspect_ratio enum + resolution tier.

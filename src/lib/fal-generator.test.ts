@@ -79,7 +79,7 @@ describe("generateWithFal", () => {
     await generateWithFal("openai/gpt-image-2/edit", BASE_INPUT, {
       subscribe: fakeSubscribe(DATA_URI_RESULT, calls),
     });
-    expect(calls[0][1].input.image_size).toBe("1024x1536");
+    expect(calls[0][1].input.image_size).toBe("portrait_4_3");
     expect(calls[0][1].input.quality).toBe("medium");
   });
 
