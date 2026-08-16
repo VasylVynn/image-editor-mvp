@@ -181,6 +181,14 @@ describe("POST /api/process", () => {
     expect(generateWithFal).not.toHaveBeenCalled();
   });
 
+  it("passes the extra reference through to generation and flags it in the prompt", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), extra: pngFile() }));
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImage).toBeTruthy();
+    expect(arg.prompt).toContain("additional reference image");
+  });
+
   it("upscales the main image before generation when upscale=true", async () => {
     const res = await POST(
       makeRequest({ image: pngFile(), upscale: "true", upscaler: "topaz" })

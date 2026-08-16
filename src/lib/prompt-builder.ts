@@ -4,6 +4,8 @@ export interface PromptInput {
   preset: Preset;
   analysis?: string;
   note?: string;
+  /** An operator-supplied extra reference image is attached. */
+  hasExtraReference?: boolean;
   /** "hex": state the background as a hex code (Gemini follows it fine).
    *  "reference": refer to an attached solid-color swatch image instead —
    *  Seedream/FLUX misread hex codes in text (one run painted "#E99999"
@@ -15,7 +17,13 @@ export interface PromptInput {
 // editable processing instruction + optional analysis fragment + operator note.
 // The header is the only place size/background/centering are stated, so the
 // editable instruction can't drift out of sync with the preset fields.
-export function buildPrompt({ preset, analysis, note, colorMode = "hex" }: PromptInput): string {
+export function buildPrompt({
+  preset,
+  analysis,
+  note,
+  hasExtraReference,
+  colorMode = "hex",
+}: PromptInput): string {
   // The format header is English on purpose: non-Google engines follow
   // English far better than Ukrainian for format constraints.
   const backgroundClause =
@@ -36,6 +44,12 @@ export function buildPrompt({ preset, analysis, note, colorMode = "hex" }: Promp
   if (analysis?.trim()) {
     sections.push(
       `Обов'язково збережи ці деталі без змін (з аналізу фото):\n${analysis.trim()}`
+    );
+  }
+  if (hasExtraReference) {
+    sections.push(
+      "An additional reference image is attached by the operator; use it as guidance " +
+        "according to the operator instruction below."
     );
   }
   if (note?.trim()) {

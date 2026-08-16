@@ -13,6 +13,7 @@ export interface PersistedSession {
   mode: "file" | "url";
   main: PersistedFile | null;
   ref: PersistedFile | null;
+  extra?: PersistedFile | null;
   productTitle: string | null;
   productSku: string | null;
   galleryImages: string[];

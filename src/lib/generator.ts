@@ -6,6 +6,8 @@ export const GENERATION_MODEL = "gemini-3-pro-image-preview";
 export interface GenerateInput {
   mainImage: ImageInput;
   referenceImage?: ImageInput;
+  /** Extra reference added by the operator at regenerate time. */
+  extraImage?: ImageInput;
   prompt: string;
   aspectRatio: string;
   /** Exact preset dimensions; fal engines with pixel-size inputs use these.
@@ -26,6 +28,9 @@ export async function generateImage(
     { inlineData: { data: input.mainImage.data, mimeType: input.mainImage.mimeType } },
     ...(input.referenceImage
       ? [{ inlineData: { data: input.referenceImage.data, mimeType: input.referenceImage.mimeType } }]
+      : []),
+    ...(input.extraImage
+      ? [{ inlineData: { data: input.extraImage.data, mimeType: input.extraImage.mimeType } }]
       : []),
     { text: input.prompt },
   ];

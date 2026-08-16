@@ -66,6 +66,7 @@ async function runAnalysisAndGeneration(input: {
   note?: string;
   engine: Engine;
   upscaler?: Upscaler;
+  extraImage?: ImageInput;
 }): Promise<GenerationOutput> {
   // Optional pre-step: upscale the (often tiny) source photo so the generator
   // and analyzer work from more pixels. Soft-fails like analysis — the
@@ -100,11 +101,13 @@ async function runAnalysisAndGeneration(input: {
     preset: input.preset,
     analysis: analysis ?? undefined,
     note: input.note,
+    hasExtraReference: !!input.extraImage,
     colorMode: isFal ? "reference" : "hex",
   });
   const generateInput = {
     mainImage,
     referenceImage: input.referenceImage,
+    extraImage: input.extraImage,
     prompt,
     aspectRatio: input.preset.aspectRatio,
     targetWidth: input.preset.width,
@@ -185,10 +188,19 @@ export async function POST(request: Request) {
       referenceImage = await downloadImage(referenceUrl, undefined, request.signal);
     }
 
+    // Optional extra reference added at regenerate time.
+    const extraFile = formData.get("extra") as File | null;
+    let extraImage: ImageInput | undefined;
+    if (extraFile) {
+      const extraError = validateFile(extraFile, "Додаткове фото");
+      if (extraError) return extraError;
+      extraImage = await toImageInput(extraFile);
+    }
+
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
-        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler }),
+        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler, extraImage }),
         GENERATION_TIMEOUT_MS,
         `Generation timeout after ${GENERATION_TIMEOUT_MS}ms`
       );

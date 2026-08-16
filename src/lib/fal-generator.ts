@@ -101,9 +101,20 @@ export async function generateWithFal(
   deps: FalDeps = { subscribe: fal.subscribe.bind(fal) }
 ): Promise<ImageInput> {
   ensureFalConfigured();
+  // Per-endpoint input image caps (verified in fal docs): main image and the
+  // color swatch always survive; optional references get trimmed first (the
+  // original product reference before the operator's extra one).
+  const maxImages = endpoint.includes("qwen") ? 3 : endpoint.includes("flux-2") ? 4 : 10;
+  const optional: ImageInput[] = [
+    ...(input.referenceImage ? [input.referenceImage] : []),
+    ...(input.extraImage ? [input.extraImage] : []),
+  ];
+  const reservedSlots = 1 + (input.backgroundSwatch ? 1 : 0);
+  while (optional.length > maxImages - reservedSlots) optional.shift();
+
   const imageUrls = await Promise.all([
     imageToFalUrl(input.mainImage, deps),
-    ...(input.referenceImage ? [imageToFalUrl(input.referenceImage, deps)] : []),
+    ...optional.map((image) => imageToFalUrl(image, deps)),
     // The color swatch must stay LAST — the prompt refers to "the last attached image".
     ...(input.backgroundSwatch ? [imageToFalUrl(input.backgroundSwatch, deps)] : []),
   ]);
