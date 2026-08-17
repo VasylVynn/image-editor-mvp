@@ -101,3 +101,11 @@ export const ENGINES: Engine[] = [
 export function getEngine(id: string | undefined | null): Engine {
   return ENGINES.find((e) => e.id === id) ?? ENGINES[0];
 }
+
+// Rough cost tier for the selector ($ cheap / $$ mid / $$$ premium) —
+// the operator sees relative cost without exact numbers.
+export function priceTier(priceUsd: number): string {
+  if (priceUsd <= 0.05) return "$";
+  if (priceUsd <= 0.09) return "$$";
+  return "$$$";
+}

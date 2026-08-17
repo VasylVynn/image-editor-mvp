@@ -8,7 +8,7 @@ import CompareView from "@/components/CompareView";
 import SaveForm from "@/components/SaveForm";
 import Link from "next/link";
 import type { Preset } from "@/lib/preset-schema";
-import { ENGINES } from "@/lib/engines";
+import { ENGINES, priceTier } from "@/lib/engines";
 import { UPSCALERS } from "@/lib/upscalers";
 import {
   saveSession,
@@ -501,7 +501,7 @@ export default function Home() {
               >
                 {ENGINES.map((engine) => (
                   <option key={engine.id} value={engine.id}>
-                    {engine.label}
+                    {engine.label} {priceTier(engine.priceUsd)}
                   </option>
                 ))}
               </select>

@@ -51,6 +51,11 @@ function engineLabel(engineId: string): string {
   return ENGINES.find((e) => e.id === engineId)?.label ?? engineId;
 }
 
+function enginePrice(engineId: string): string {
+  const engine = ENGINES.find((e) => e.id === engineId);
+  return engine ? `$${engine.priceUsd.toFixed(3)}` : "—";
+}
+
 function usd(value: number): string {
   return `$${value.toFixed(2)}`;
 }
@@ -148,6 +153,7 @@ export default function StatsPage() {
                 <thead className="bg-gray-50 text-gray-600">
                   <tr>
                     <th className="text-left px-3 py-2">Модель</th>
+                    <th className="text-right px-3 py-2">Ціна/ген</th>
                     <th className="text-right px-3 py-2">Ген.</th>
                     <th className="text-right px-3 py-2">Помилок</th>
                     <th className="text-right px-3 py-2">Сейвів</th>
@@ -160,7 +166,7 @@ export default function StatsPage() {
                 <tbody>
                   {data.perEngine.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-6 text-center text-gray-500">
+                      <td colSpan={9} className="px-3 py-6 text-center text-gray-500">
                         Ще нема даних за період — обробіть кілька фото.
                       </td>
                     </tr>
@@ -170,6 +176,9 @@ export default function StatsPage() {
                     return (
                       <tr key={row.engineId} className="border-t border-gray-100 text-gray-900">
                         <td className="px-3 py-2">{engineLabel(row.engineId)}</td>
+                        <td className="px-3 py-2 text-right text-gray-500">
+                          {enginePrice(row.engineId)}
+                        </td>
                         <td className="px-3 py-2 text-right">{row.generations}</td>
                         <td className="px-3 py-2 text-right text-red-600">
                           {row.failures || ""}

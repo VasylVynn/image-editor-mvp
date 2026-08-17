@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ENGINES, getEngine } from "./engines";
+import { ENGINES, getEngine, priceTier } from "./engines";
 
 describe("engines", () => {
   it("gemini is the first (default) engine", () => {
@@ -12,6 +12,14 @@ describe("engines", () => {
       // Newer fal listings (bytedance/seedream/v5, openai/gpt-image-2) drop the fal-ai/ prefix.
       expect(engine.falEndpoint).toMatch(/^(fal-ai|bytedance|openai)\//);
     }
+  });
+
+  it("priceTier maps cost to $, $$, $$$", () => {
+    expect(priceTier(0.035)).toBe("$");
+    expect(priceTier(0.05)).toBe("$");
+    expect(priceTier(0.07)).toBe("$$");
+    expect(priceTier(0.09)).toBe("$$");
+    expect(priceTier(0.13)).toBe("$$$");
   });
 
   it("getEngine resolves known ids and falls back to gemini", () => {
