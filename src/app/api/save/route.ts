@@ -2,16 +2,19 @@ import { NextResponse } from "next/server";
 import { getPreset } from "@/lib/presets";
 import { resolveFilename } from "@/lib/naming";
 import { saveResult } from "@/lib/storage";
+import { appendEvent } from "@/lib/events";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { image, sku, productName, presetId, promptUsed } = body as {
+    const { image, sku, productName, presetId, promptUsed, model } = body as {
       image?: string;
       sku?: string;
       productName?: string;
       presetId?: string;
       promptUsed?: string;
+      /** Engine that generated the saved image — analytics attribution. */
+      model?: string;
     };
 
     if (!image) {
@@ -37,6 +40,12 @@ export async function POST(request: Request) {
       promptUsed,
       sku,
       productName,
+    });
+    await appendEvent({
+      type: "save",
+      engineId: model,
+      presetId: preset.id,
+      file: filePath.split("/").pop(),
     });
     return NextResponse.json({ path: filePath });
   } catch (error) {

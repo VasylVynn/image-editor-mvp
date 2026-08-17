@@ -6,6 +6,7 @@ import { getEngine, type Engine } from "@/lib/engines";
 import { upscaleImage } from "@/lib/upscaler";
 import { getUpscaler, type Upscaler } from "@/lib/upscalers";
 import { colorSwatchImage } from "@/lib/color-swatch";
+import { appendEvent } from "@/lib/events";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
@@ -205,6 +206,8 @@ export async function POST(request: Request) {
       extraImages.push(await toImageInput(extraFile));
     }
 
+    const mode: "file" | "url" = file ? "file" : "url";
+    const startedAt = Date.now();
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
@@ -216,11 +219,31 @@ export async function POST(request: Request) {
       console.error("Generation error:", err);
       const rawMessage = err instanceof Error ? err.message : "Помилка генерації";
       const message = mapGenerationError(rawMessage);
+      await appendEvent({
+        type: "generation",
+        engineId: engine.id,
+        presetId: preset.id,
+        mode,
+        durationMs: Date.now() - startedAt,
+        ok: false,
+        errorClass: message,
+        upscaled: !!upscaler,
+      });
       return NextResponse.json(
         { error: message, details: message !== rawMessage ? rawMessage : undefined },
         { status: 500 }
       );
     }
+
+    await appendEvent({
+      type: "generation",
+      engineId: engine.id,
+      presetId: preset.id,
+      mode,
+      durationMs: Date.now() - startedAt,
+      ok: true,
+      upscaled: !!upscaler,
+    });
 
     return NextResponse.json({
       image: `data:${generation.result.mimeType};base64,${generation.result.data}`,

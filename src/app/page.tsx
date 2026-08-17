@@ -651,6 +651,7 @@ export default function Home() {
                 <SaveForm
                   resultImage={result.image}
                   promptUsed={result.promptUsed}
+                  model={result.model}
                   presetId={presetId}
                   defaultSku={defaultSku}
                   defaultProductName={defaultProductName}

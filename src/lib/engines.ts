@@ -16,6 +16,8 @@ export interface Engine {
   quality?: string;
   /** Approximate cost per generation in USD, shown to the operator. */
   price: string;
+  /** Numeric cost per generation for analytics math. */
+  priceUsd: number;
   /** One-line Ukrainian description for the UI. */
   description: string;
 }
@@ -23,6 +25,7 @@ export interface Engine {
 export const ENGINES: Engine[] = [
   {
     id: "gemini",
+    priceUsd: 0.134,
     label: "Gemini — Nano Banana Pro",
     provider: "gemini",
     price: "~$0.13",
@@ -31,6 +34,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-nano-banana-2",
+    priceUsd: 0.08,
     label: "Nano Banana 2 (fal)",
     provider: "fal",
     falEndpoint: "fal-ai/nano-banana-2/edit",
@@ -42,6 +46,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-seedream",
+    priceUsd: 0.04,
     label: "Seedream 4.5 (fal)",
     provider: "fal",
     falEndpoint: "fal-ai/bytedance/seedream/v4.5/edit",
@@ -51,6 +56,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-seedream-5-lite",
+    priceUsd: 0.035,
     label: "Seedream 5.0 Lite (fal)",
     provider: "fal",
     falEndpoint: "bytedance/seedream/v5/lite/edit",
@@ -59,6 +65,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-seedream-5-pro",
+    priceUsd: 0.07,
     label: "Seedream 5.0 Pro (fal)",
     provider: "fal",
     falEndpoint: "bytedance/seedream/v5/pro/edit",
@@ -68,6 +75,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-gpt-image-2-medium",
+    priceUsd: 0.042,
     label: "GPT Image 2 medium (fal)",
     provider: "fal",
     falEndpoint: "openai/gpt-image-2/edit",
@@ -78,6 +86,7 @@ export const ENGINES: Engine[] = [
   },
   {
     id: "fal-gpt-image-2-high",
+    priceUsd: 0.13,
     label: "GPT Image 2 high (fal)",
     provider: "fal",
     falEndpoint: "openai/gpt-image-2/edit",

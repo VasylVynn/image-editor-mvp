@@ -8,6 +8,8 @@ export interface SaveFormProps {
   presetId: string;
   defaultSku: string;
   defaultProductName: string;
+  /** Engine that generated the result — analytics attribution. */
+  model?: string;
   onSaved: (path: string) => void;
 }
 
@@ -17,6 +19,7 @@ export default function SaveForm({
   presetId,
   defaultSku,
   defaultProductName,
+  model,
   onSaved,
 }: SaveFormProps) {
   const [sku, setSku] = useState(defaultSku);
@@ -46,6 +49,7 @@ export default function SaveForm({
           productName,
           presetId,
           promptUsed,
+          model,
         }),
       });
 
