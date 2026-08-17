@@ -65,8 +65,6 @@ export default function Home() {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
-  // Vote cast for the CURRENT result ("up" | "down" | null); resets with it.
-  const [votedFor, setVotedFor] = useState<"up" | "down" | null>(null);
 
   const [fileOriginalUrl, setFileOriginalUrl] = useState<string | null>(null);
   const [fileReferenceUrl, setFileReferenceUrl] = useState<string | null>(null);
@@ -286,7 +284,6 @@ export default function Home() {
       }
 
       updateResult(data);
-      setVotedFor(null); // fresh result — fresh vote
       setStage("done");
     } catch (err) {
       // Aborted deliberately (reset/unmount/cancel) — the abort site (handleCancel,
@@ -308,21 +305,6 @@ export default function Home() {
     setStage(resultRef.current ? "done" : "idle");
   }, []);
 
-  // Records a quality vote for the engine that produced the current result.
-  // Fire-and-forget: a lost vote must never disturb the operator's flow.
-  const handleVote = useCallback(
-    (vote: "up" | "down") => {
-      const model = resultRef.current?.model;
-      if (!model || votedFor) return;
-      setVotedFor(vote);
-      fetch("/api/votes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ engineId: model, vote, presetId }),
-      }).catch(() => {});
-    },
-    [votedFor, presetId]
-  );
 
   // «Нове фото»: clears the work in progress (photos, gallery, result, note)
   // and the persisted session, but keeps the operator's settings (preset,
@@ -602,37 +584,6 @@ export default function Home() {
                 resultImage={result.image}
               />
 
-              {result.model && (
-                <div className="flex items-center justify-center gap-3 text-sm text-gray-600">
-                  <span>
-                    Оцініть результат (
-                    {ENGINES.find((e) => e.id === result.model)?.label ?? result.model}):
-                  </span>
-                  <button
-                    onClick={() => handleVote("up")}
-                    disabled={!!votedFor}
-                    className={`px-3 py-1.5 rounded-lg border text-lg leading-none transition-colors ${
-                      votedFor === "up"
-                        ? "bg-green-50 border-green-300"
-                        : "bg-white border-gray-300 hover:bg-gray-50 disabled:opacity-40"
-                    }`}
-                  >
-                    👍
-                  </button>
-                  <button
-                    onClick={() => handleVote("down")}
-                    disabled={!!votedFor}
-                    className={`px-3 py-1.5 rounded-lg border text-lg leading-none transition-colors ${
-                      votedFor === "down"
-                        ? "bg-red-50 border-red-300"
-                        : "bg-white border-gray-300 hover:bg-gray-50 disabled:opacity-40"
-                    }`}
-                  >
-                    👎
-                  </button>
-                  {votedFor && <span className="text-green-700">Записано ✓</span>}
-                </div>
-              )}
 
               <div className="flex flex-col items-center gap-4">
                 {savedPath && (
