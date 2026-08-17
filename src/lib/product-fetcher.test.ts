@@ -76,6 +76,23 @@ describe("fetchProductPage", () => {
     await expect(fetchProductPage("not-a-url")).rejects.toThrow();
   });
 
+  it("extracts the SKU from JSON-LD when markup labels are absent", async () => {
+    const html = `
+<html><head>
+  <script type="application/ld+json">{"@context":"schema.org","@graph":[
+    {"@type":"BreadcrumbList"},
+    {"@type":"Product","name":"Футболка","sku":"20828000"}
+  ]}</script>
+</head><body>
+  <h1>Трикотажна вкорочена футболка</h1>
+  <div class="gallery"><img src="/img/a.jpg" /></div>
+</body></html>`;
+    const page = await fetchProductPage("https://shop.ua/p/3", {
+      fetchFn: fakeFetch(html, { "content-type": "text/html" }),
+    });
+    expect(page.sku).toBe("20828000");
+  });
+
   it("upgrades Magento cache thumbnails to verified originals and dedupes variants", async () => {
     const page = await fetchProductPage("https://shop.ua/p/1", {
       fetchFn: magentoFetch(true),

@@ -43,6 +43,40 @@ async function fetchWithTimeout(
   }
 }
 
+// Most store engines (Magento, Shopify, Woo) publish the SKU in JSON-LD
+// structured data even when the visible "Код:" is rendered client-side.
+function findSkuDeep(node: unknown, depth = 0): string | null {
+  if (depth > 4 || node === null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findSkuDeep(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  const record = node as Record<string, unknown>;
+  if (typeof record.sku === "string" && record.sku.trim()) return record.sku.trim();
+  if (typeof record.sku === "number") return String(record.sku);
+  for (const key of ["@graph", "mainEntity", "offers", "itemListElement", "item"]) {
+    const found = findSkuDeep(record[key], depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+function skuFromJsonLd($: cheerio.CheerioAPI): string | null {
+  let found: string | null = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (found) return;
+    try {
+      found = findSkuDeep(JSON.parse($(el).text()));
+    } catch {
+      /* malformed JSON-LD — skip */
+    }
+  });
+  return found;
+}
+
 export async function fetchProductPage(
   url: string,
   deps: FetchDeps = { fetchFn: fetch },
@@ -60,6 +94,7 @@ export async function fetchProductPage(
     null;
 
   let sku = $('[itemprop="sku"]').first().text().trim() || null;
+  if (!sku) sku = skuFromJsonLd($);
   if (!sku) {
     sku = $('meta[property="product:retailer_item_id"]').attr("content")?.trim() || null;
   }

@@ -65,6 +65,7 @@ export default function Home() {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
+  const [skuCopied, setSkuCopied] = useState(false);
 
   const [fileOriginalUrl, setFileOriginalUrl] = useState<string | null>(null);
   const [fileReferenceUrl, setFileReferenceUrl] = useState<string | null>(null);
@@ -409,7 +410,26 @@ export default function Home() {
               />
 
               {productTitle && (
-                <p className="text-sm text-gray-600">Товар: {productTitle}</p>
+                <p className="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
+                  <span>Товар: {productTitle}</span>
+                  {productSku && (
+                    <span className="inline-flex items-center gap-1">
+                      · Код: <b className="text-gray-900">{productSku}</b>
+                      <button
+                        type="button"
+                        title="Скопіювати код"
+                        onClick={() => {
+                          navigator.clipboard.writeText(productSku);
+                          setSkuCopied(true);
+                          setTimeout(() => setSkuCopied(false), 1500);
+                        }}
+                        className="px-1.5 py-0.5 border border-gray-300 rounded text-xs bg-white hover:bg-gray-50"
+                      >
+                        {skuCopied ? "✓" : "📋"}
+                      </button>
+                    </span>
+                  )}
+                </p>
               )}
 
               {galleryImages.length > 0 && (
