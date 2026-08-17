@@ -492,7 +492,7 @@ export default function Home() {
               href="/stats"
               className="text-sm text-blue-600 hover:underline whitespace-nowrap"
             >
-              📊 Рейтинг
+              📊 Аналітика
             </Link>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
