@@ -488,12 +488,6 @@ export default function Home() {
               ⚙ Пресети
             </Link>
 
-            <Link
-              href="/stats"
-              className="text-sm text-blue-600 hover:underline whitespace-nowrap"
-            >
-              📊 Аналітика
-            </Link>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
               Модель
@@ -505,15 +499,14 @@ export default function Home() {
               >
                 {ENGINES.map((engine) => (
                   <option key={engine.id} value={engine.id}>
-                    {engine.label} — {engine.price}
+                    {engine.label}
                   </option>
                 ))}
               </select>
             </label>
 
             <p className="w-full text-xs text-gray-500 -mt-2">
-              {ENGINES.find((e) => e.id === engineId)?.description}{" "}
-              Ціна — за одну генерацію.
+              {ENGINES.find((e) => e.id === engineId)?.description}
             </p>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
