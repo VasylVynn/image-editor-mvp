@@ -20,6 +20,7 @@ describe("analyzeImages", () => {
     itemCount: 2,
     items: ["bodysuit", "pants"],
     criticalDetails: ["4 wooden buttons", "bear print on chest"],
+    unwantedObjects: [],
   };
 
   it("sends images plus instruction and parses JSON response", async () => {
@@ -48,9 +49,21 @@ describe("formatAnalysis", () => {
       itemCount: 2,
       items: ["bodysuit", "pants"],
       criticalDetails: ["4 wooden buttons"],
+      unwantedObjects: [],
     });
     expect(text).toContain("2 piece(s)");
     expect(text).toContain("bodysuit, pants");
     expect(text).toContain("- 4 wooden buttons");
+    expect(text).not.toContain("Objects to remove");
+  });
+
+  it("lists unwanted objects when the analyzer reports them", () => {
+    const text = formatAnalysis({
+      itemCount: 1,
+      items: ["dress"],
+      criticalDetails: ["lace collar"],
+      unwantedObjects: ["hanger", "price tag"],
+    });
+    expect(text).toContain("Objects to remove (not part of the product): hanger, price tag.");
   });
 });

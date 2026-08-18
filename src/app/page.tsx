@@ -21,6 +21,7 @@ import {
 
 type Stage = "idle" | "processing" | "done";
 type Mode = "file" | "url";
+type Pipeline = "auto" | "deterministic" | "generative";
 
 interface ProcessResult {
   image: string;
@@ -30,6 +31,13 @@ interface ProcessResult {
   upscaleFailed?: boolean;
   /** Engine that produced this result — voting target. */
   model?: string;
+  /** Which path produced the result. */
+  pipeline?: "deterministic" | "generative";
+  /** How the model output was normalized ("recompose" | "resize" | null). */
+  finalize?: "recompose" | "resize" | null;
+  finalizeFailed?: boolean;
+  /** Why auto mode fell back to generation (deterministic gate reason). */
+  deterministicReason?: string | null;
 }
 
 interface ProductInfo {
@@ -53,6 +61,9 @@ export default function Home() {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [mainUrl, setMainUrl] = useState<string | null>(null);
   const [refUrl, setRefUrl] = useState<string | null>(null);
+  const [extraUrls, setExtraUrls] = useState<string[]>([]);
+  // Regenerate from the previous generated result instead of the originals.
+  const [fromResult, setFromResult] = useState(false);
 
   const [note, setNote] = useState("");
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -61,6 +72,7 @@ export default function Home() {
   const [upscale, setUpscale] = useState(false);
   const [upscalerId, setUpscalerId] = useState("recraft");
   const [analyze, setAnalyze] = useState(true);
+  const [pipeline, setPipeline] = useState<Pipeline>("auto");
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +90,11 @@ export default function Home() {
   const [uploadKey, setUploadKey] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Groups every attempt on one product photo in the events log; the attempt
+  // counter turns regenerate notes into labeled failure examples.
+  const sessionIdRef = useRef<string | null>(null);
+  const attemptRef = useRef(0);
 
   // Mirrors `result` so async callbacks (the catch below, cancel) can read the
   // CURRENT value instead of the one captured in their closure — a failed
@@ -126,6 +143,13 @@ export default function Home() {
       if (settings.presetId) setPresetId(settings.presetId);
       if (settings.engineId) setEngineId(settings.engineId);
       if (typeof settings.analyze === "boolean") setAnalyze(settings.analyze);
+      if (
+        settings.pipeline === "auto" ||
+        settings.pipeline === "deterministic" ||
+        settings.pipeline === "generative"
+      ) {
+        setPipeline(settings.pipeline);
+      }
       if (typeof settings.upscale === "boolean") setUpscale(settings.upscale);
       if (settings.upscalerId) setUpscalerId(settings.upscalerId);
       if (typeof settings.note === "string") setNote(settings.note);
@@ -140,6 +164,7 @@ export default function Home() {
       setGalleryImages(session.galleryImages);
       setMainUrl(session.mainUrl);
       setRefUrl(session.refUrl);
+      setExtraUrls(session.extraUrls ?? []);
       if (session.main) {
         setMainFile(new File([session.main.blob], session.main.name, { type: session.main.type }));
       }
@@ -151,6 +176,8 @@ export default function Home() {
         persistedExtras.map((f) => new File([f.blob], f.name, { type: f.type }))
       );
       setSavedPath(session.savedPath);
+      sessionIdRef.current = session.sessionId ?? null;
+      attemptRef.current = session.attempt ?? 0;
       updateResult(session.result);
       setStage("done");
     });
@@ -159,8 +186,8 @@ export default function Home() {
   // Persist the cheap settings on every change.
   useEffect(() => {
     if (!restoredRef.current) return;
-    saveSettings({ presetId, engineId, analyze, upscale, upscalerId, note, mode });
-  }, [presetId, engineId, analyze, upscale, upscalerId, note, mode]);
+    saveSettings({ presetId, engineId, analyze, upscale, upscalerId, note, mode, pipeline });
+  }, [presetId, engineId, analyze, upscale, upscalerId, note, mode, pipeline]);
 
   // Persist the finished session (result + sources) whenever it changes.
   useEffect(() => {
@@ -173,12 +200,15 @@ export default function Home() {
       productTitle,
       productSku,
       galleryImages,
+      sessionId: sessionIdRef.current,
+      attempt: attemptRef.current,
       mainUrl,
       refUrl,
+      extraUrls,
       result,
       savedPath,
     });
-  }, [result, stage, savedPath, mode, mainFile, refFile, extraFiles, productTitle, productSku, galleryImages, mainUrl, refUrl]);
+  }, [result, stage, savedPath, mode, mainFile, refFile, extraFiles, productTitle, productSku, galleryImages, mainUrl, refUrl, extraUrls]);
 
   // Keep object URLs for the compare view in sync with the selected files.
   useEffect(() => {
@@ -213,7 +243,15 @@ export default function Home() {
   const referenceUrl = mode === "file" ? fileReferenceUrl : refUrl;
 
   const handleImagesChange = useCallback((main: File | null, reference: File | null) => {
-    setMainFile(main);
+    setMainFile((previous) => {
+      // A different main photo is a different product — start a fresh
+      // attempt chain in the events log.
+      if (main !== previous) {
+        sessionIdRef.current = null;
+        attemptRef.current = 0;
+      }
+      return main;
+    });
     setRefFile(reference);
   }, []);
 
@@ -223,22 +261,46 @@ export default function Home() {
     setGalleryImages(product.images);
     setMainUrl(null);
     setRefUrl(null);
+    setExtraUrls([]);
+    setFromResult(false);
+    // New product page fetched — new attempt chain.
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
   }, []);
 
-  // Cycle a gallery thumbnail: none -> Основне -> Референс -> none.
-  // Only one image can hold each role; picking a new Основне clears the previous one.
+  // A different main photo is a different source — the events chain
+  // (attempt → note → attempt) only makes sense within one source photo.
+  const resetAttemptChain = useCallback(() => {
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
+    setFromResult(false);
+  }, []);
+
+  // Cycle a gallery thumbnail: none -> Основне -> Референс -> Додаткове -> none.
+  // Основне/Референс are single-slot; Додаткове can hold several (shared cap
+  // of 4 with the file-mode extras). Works after generation too, so the
+  // operator can reshuffle the selection before a regenerate.
   const cycleThumbnail = useCallback(
     (img: string) => {
       if (mainUrl === img) {
         setMainUrl(null);
         setRefUrl(img);
+        resetAttemptChain();
       } else if (refUrl === img) {
         setRefUrl(null);
+        // When the shared extras cap is already full the cycle skips the
+        // «Додаткове» state and lands on «нічого» — deliberate, not a drop.
+        setExtraUrls((prev) =>
+          prev.length + extraFiles.length < MAX_EXTRA_FILES ? [...prev, img] : prev
+        );
+      } else if (extraUrls.includes(img)) {
+        setExtraUrls((prev) => prev.filter((u) => u !== img));
       } else {
         setMainUrl(img);
+        resetAttemptChain();
       }
     },
-    [mainUrl, refUrl]
+    [mainUrl, refUrl, extraUrls, extraFiles.length, resetAttemptChain]
   );
 
   const hasMainImage = mode === "file" ? !!mainFile : !!mainUrl;
@@ -256,21 +318,48 @@ export default function Home() {
     setError(null);
     setSavedPath(null);
 
+    if (!sessionIdRef.current) {
+      sessionIdRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    attemptRef.current += 1;
+
     try {
       const formData = new FormData();
-      if (mode === "file") {
+      const previousResult = resultRef.current;
+      if (fromResult && previousResult) {
+        // Iterate on the last generated image: it becomes the main input, the
+        // reference/extras/note still apply as usual.
+        const blob = await (await fetch(previousResult.image)).blob();
+        formData.append("image", new File([blob], "result.png", { type: blob.type || "image/png" }));
+        if (mode === "file") {
+          if (refFile) formData.append("reference", refFile);
+        } else if (refUrl) {
+          formData.append("referenceUrl", refUrl);
+        }
+      } else if (mode === "file") {
         formData.append("image", mainFile as File);
         if (refFile) formData.append("reference", refFile);
       } else {
         formData.append("imageUrl", mainUrl as string);
         if (refUrl) formData.append("referenceUrl", refUrl);
       }
-      formData.append("note", note);
+      if (mode === "url") {
+        extraUrls.forEach((url) => formData.append("extraUrl", url));
+      }
+      // «Лише фон» takes no instructions — the field is disabled in the UI
+      // and the value must not leak to the server from the kept state.
+      formData.append("note", pipeline === "deterministic" ? "" : note);
       formData.append("presetId", presetId);
       formData.append("analyze", String(analyze));
       formData.append("model", engineId);
       formData.append("upscale", String(upscale));
       formData.append("upscaler", upscalerId);
+      formData.append("pipeline", pipeline);
+      formData.append("sessionId", sessionIdRef.current);
+      formData.append("attempt", String(attemptRef.current));
       extraFiles.forEach((file) => formData.append("extra", file));
 
       const response = await fetch("/api/process", {
@@ -296,7 +385,7 @@ export default function Home() {
       // a failed regenerate shouldn't throw away an already-paid-for image.
       setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, extraFiles, mainUrl, refUrl, note, presetId, analyze, engineId, upscale, upscalerId, updateResult]);
+  }, [mode, mainFile, refFile, extraFiles, mainUrl, refUrl, extraUrls, fromResult, note, presetId, analyze, pipeline, engineId, upscale, upscalerId, updateResult]);
 
   // Cancels an in-flight request and returns to a sane state. The fetch's own
   // AbortError branch above is a no-op, so this is the sole place that decides
@@ -320,12 +409,16 @@ export default function Home() {
     setGalleryImages([]);
     setMainUrl(null);
     setRefUrl(null);
+    setExtraUrls([]);
+    setFromResult(false);
     setNote("");
     setStage("idle");
     updateResult(null);
     setError(null);
     setSavedPath(null);
     setUploadKey((k) => k + 1);
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
     void clearSession();
   }, [updateResult]);
 
@@ -338,6 +431,7 @@ export default function Home() {
     setAnalyze(true);
     setUpscale(false);
     setUpscalerId("recraft");
+    setPipeline("auto");
     clearSettings();
   }, [handleReset]);
 
@@ -435,13 +529,20 @@ export default function Home() {
               {galleryImages.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {galleryImages.map((img) => {
-                    const badge = mainUrl === img ? "main" : refUrl === img ? "ref" : null;
+                    const badge =
+                      mainUrl === img
+                        ? "main"
+                        : refUrl === img
+                          ? "ref"
+                          : extraUrls.includes(img)
+                            ? "extra"
+                            : null;
                     return (
                       <button
                         type="button"
                         key={img}
                         onClick={() => cycleThumbnail(img)}
-                        disabled={stage !== "idle"}
+                        disabled={stage === "processing"}
                         className="relative border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm disabled:opacity-50"
                       >
                         {badge && (
@@ -449,10 +550,12 @@ export default function Home() {
                             className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${
                               badge === "main"
                                 ? "bg-blue-600 text-white"
-                                : "bg-white/90 text-gray-700"
+                                : badge === "ref"
+                                  ? "bg-white/90 text-gray-700"
+                                  : "bg-gray-700/90 text-white"
                             }`}
                           >
-                            {badge === "main" ? "Основне" : "Референс"}
+                            {badge === "main" ? "Основне" : badge === "ref" ? "Референс" : "Додаткове"}
                           </span>
                         )}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -490,6 +593,20 @@ export default function Home() {
               ⚙ Пресети
             </Link>
 
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              Обробка
+              <select
+                value={pipeline}
+                onChange={(e) => setPipeline(e.target.value as Pipeline)}
+                disabled={stage === "processing"}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm bg-white text-gray-900"
+              >
+                <option value="auto">Авто</option>
+                <option value="deterministic">Лише фон — без AI, $0</option>
+                <option value="generative">Завжди AI</option>
+              </select>
+            </label>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">
               Модель
@@ -548,11 +665,15 @@ export default function Home() {
             {stage !== "done" && (
               <input
                 type="text"
-                value={note}
+                value={pipeline === "deterministic" ? "" : note}
                 onChange={(e) => setNote(e.target.value)}
-                disabled={stage === "processing"}
-                placeholder="Примітка для моделі (необовʼязково): напр. прибери вішак"
-                className="flex-1 min-w-[240px] border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900 placeholder-gray-400"
+                disabled={stage === "processing" || pipeline === "deterministic"}
+                placeholder={
+                  pipeline === "deterministic"
+                    ? "Режим «Лише фон» не виконує текстові інструкції"
+                    : "Примітка для моделі (необовʼязково): напр. прибери вішак"
+                }
+                className="flex-1 min-w-[240px] border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-900 placeholder-gray-400 disabled:bg-gray-50 disabled:text-gray-400"
               />
             )}
           </div>
@@ -597,6 +718,28 @@ export default function Home() {
                   Апскейл не спрацював, використано оригінальне фото
                 </div>
               )}
+              {result.finalizeFailed && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm text-center">
+                  Нормалізація розміру не спрацювала — розмір і фон як від моделі
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-center items-center gap-2">
+                {result.pipeline === "deterministic" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs font-medium text-green-700">
+                    ✓ Пікселі товару збережені — оброблено без AI
+                  </span>
+                ) : result.pipeline === "generative" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700">
+                    AI-генерація{result.finalize === "recompose" ? " · фон і розмір нормалізовано" : ""}
+                  </span>
+                ) : null}
+                {result.pipeline === "generative" && result.deterministicReason && (
+                  <span className="text-xs text-gray-500">
+                    Авто → AI: {result.deterministicReason}
+                  </span>
+                )}
+              </div>
 
               <CompareView
                 originalUrl={originalUrl}
@@ -616,6 +759,8 @@ export default function Home() {
                   resultImage={result.image}
                   promptUsed={result.promptUsed}
                   model={result.model}
+                  pipeline={result.pipeline}
+                  sessionId={sessionIdRef.current ?? undefined}
                   presetId={presetId}
                   defaultSku={defaultSku}
                   defaultProductName={defaultProductName}
@@ -674,6 +819,17 @@ export default function Home() {
                       />
                     </label>
                   )}
+                  <label
+                    className="flex items-center gap-2 px-3 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white cursor-pointer"
+                    title="Наступна генерація візьме за основу вже згенерований результат, а не оригінальне фото"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={fromResult}
+                      onChange={(e) => setFromResult(e.target.checked)}
+                    />
+                    Від результату
+                  </label>
                   <button
                     onClick={handleProcess}
                     className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"

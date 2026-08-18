@@ -8,8 +8,23 @@ vi.mock("@/lib/analyzer", () => ({
     itemCount: 1,
     items: ["dress"],
     criticalDetails: ["bow on collar"],
+    unwantedObjects: [],
   })),
   formatAnalysis: vi.fn(() => "FORMATTED ANALYSIS"),
+}));
+vi.mock("@/lib/deterministic", () => ({
+  // Default: gate refuses → the request falls through to the generative path.
+  deterministicCompose: vi.fn(async () => ({
+    ok: false as const,
+    reason: "фон не однотонний (тест)",
+  })),
+  // Default finalize: identity passthrough, so generative-path assertions on
+  // the raw engine bytes keep holding.
+  finalizeGenerated: vi.fn(async (image: { data: string; mimeType: string }) => ({
+    image,
+    method: "recompose" as const,
+    bgUniformity: 0.99,
+  })),
 }));
 vi.mock("@/lib/product-fetcher", () => ({
   downloadImage: vi.fn(async () => ({ data: "ZnJvbVVybA==", mimeType: "image/jpeg" })),
@@ -26,6 +41,7 @@ import { generateImage } from "@/lib/generator";
 import { generateWithFal } from "@/lib/fal-generator";
 import { upscaleImage } from "@/lib/upscaler";
 import { analyzeImages } from "@/lib/analyzer";
+import { deterministicCompose, finalizeGenerated } from "@/lib/deterministic";
 
 function makeRequest(fields: Record<string, string | File>) {
   const fd = new FormData();
@@ -254,5 +270,215 @@ describe("POST /api/process", () => {
     const body = await res.json();
     expect(body.upscaleFailed).toBe(true);
     expect(generateImage).toHaveBeenCalled(); // generation still ran
+  });
+});
+
+describe("pipeline routing", () => {
+  const composedOk = {
+    ok: true as const,
+    image: { data: "ZGV0", mimeType: "image/png" },
+    stats: { bgUniformity: 0.99, bgColor: { r: 255, g: 255, b: 255 }, coverage: 0.3, scale: 1.2 },
+  };
+
+  it("auto: clean analysis + uniform background → deterministic result, no model call", async () => {
+    vi.mocked(deterministicCompose).mockResolvedValueOnce(composedOk);
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pipeline).toBe("deterministic");
+    expect(body.model).toBe("deterministic");
+    expect(body.image).toBe("data:image/png;base64,ZGV0");
+    expect(body.analysis).toBe("FORMATTED ANALYSIS");
+    expect(generateImage).not.toHaveBeenCalled();
+    expect(generateWithFal).not.toHaveBeenCalled();
+  });
+
+  it("auto: compose gate refuses → generative with the reason surfaced", async () => {
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pipeline).toBe("generative");
+    expect(body.deterministicReason).toContain("не однотонний");
+    expect(generateImage).toHaveBeenCalled();
+  });
+
+  it("auto: analyzer reports unwanted objects → straight to generation, compose not attempted", async () => {
+    vi.mocked(analyzeImages).mockResolvedValueOnce({
+      itemCount: 1,
+      items: ["dress"],
+      criticalDetails: [],
+      unwantedObjects: ["hanger"],
+    });
+    const res = await POST(makeRequest({ image: pngFile() }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pipeline).toBe("generative");
+    expect(body.deterministicReason).toContain("hanger");
+    expect(deterministicCompose).not.toHaveBeenCalled();
+  });
+
+  it("auto: an operator note implies a semantic edit → compose and routing analysis skipped", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), note: "прибери вішак" }));
+    expect(res.status).toBe(200);
+    expect(deterministicCompose).not.toHaveBeenCalled();
+    expect((await res.json()).pipeline).toBe("generative");
+  });
+
+  it("auto with analyze=false never routes deterministically", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), analyze: "false" }));
+    expect(res.status).toBe(200);
+    expect(deterministicCompose).not.toHaveBeenCalled();
+    expect((await res.json()).pipeline).toBe("generative");
+  });
+
+  it("forced deterministic: composes without calling the analyzer", async () => {
+    vi.mocked(deterministicCompose).mockResolvedValueOnce(composedOk);
+    const res = await POST(makeRequest({ image: pngFile(), pipeline: "deterministic" }));
+    expect(res.status).toBe(200);
+    expect(analyzeImages).not.toHaveBeenCalled();
+    expect((await res.json()).pipeline).toBe("deterministic");
+  });
+
+  it("forced deterministic: gate refusal is a 422 with the reason, not a silent model call", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), pipeline: "deterministic" }));
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("не однотонний");
+    expect(generateImage).not.toHaveBeenCalled();
+  });
+
+  it("forced generative skips the deterministic attempt entirely", async () => {
+    const res = await POST(makeRequest({ image: pngFile(), pipeline: "generative" }));
+    expect(res.status).toBe(200);
+    expect(deterministicCompose).not.toHaveBeenCalled();
+    expect(analyzeImages).toHaveBeenCalled(); // analysis still feeds the prompt
+  });
+});
+
+describe("finalize step", () => {
+  it("normalizes the model output and reports the method", async () => {
+    vi.mocked(finalizeGenerated).mockResolvedValueOnce({
+      image: { data: "Zml4ZWQ=", mimeType: "image/png" },
+      method: "recompose",
+      bgUniformity: 0.98,
+    });
+    const res = await POST(makeRequest({ image: pngFile(), pipeline: "generative" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.image).toBe("data:image/png;base64,Zml4ZWQ=");
+    expect(body.finalize).toBe("recompose");
+    expect(body.finalizeFailed).toBe(false);
+  });
+
+  it("finalize=false leaves the raw model output untouched", async () => {
+    const res = await POST(
+      makeRequest({ image: pngFile(), pipeline: "generative", finalize: "false" })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(finalizeGenerated).not.toHaveBeenCalled();
+    expect(body.image).toBe("data:image/png;base64,cmVzdWx0");
+    expect(body.finalize).toBeNull();
+  });
+
+  it("soft-fails to the raw model output when finalize throws", async () => {
+    vi.mocked(finalizeGenerated).mockRejectedValueOnce(new Error("sharp exploded"));
+    const res = await POST(makeRequest({ image: pngFile(), pipeline: "generative" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.finalizeFailed).toBe(true);
+    expect(body.image).toBe("data:image/png;base64,cmVzdWx0");
+  });
+});
+
+describe("review-pass additions", () => {
+  it("forced deterministic with an operator note is refused with an explanation", async () => {
+    const res = await POST(
+      makeRequest({ image: pngFile(), pipeline: "deterministic", note: "прибери вішак" })
+    );
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("не виконує текстові інструкції");
+    expect(deterministicCompose).not.toHaveBeenCalled();
+  });
+
+  it("upscale runs before routing — the deterministic compose sees the upscaled bytes", async () => {
+    vi.mocked(deterministicCompose).mockResolvedValueOnce({
+      ok: true,
+      image: { data: "ZGV0", mimeType: "image/png" },
+      stats: { bgUniformity: 0.99, bgColor: { r: 255, g: 255, b: 255 }, coverage: 0.3, scale: 1 },
+    });
+    const res = await POST(
+      makeRequest({ image: pngFile(), upscale: "true", upscaler: "topaz" })
+    );
+    expect(res.status).toBe(200);
+    expect(upscaleImage).toHaveBeenCalled();
+    const composeArg = vi.mocked(deterministicCompose).mock.calls[0][0];
+    expect(composeArg.data).toBe("YmlnZ2Vy"); // the upscaled bytes, not the original
+    expect((await res.json()).pipeline).toBe("deterministic");
+  });
+
+  it("upscale soft-fail is reported on the deterministic path too", async () => {
+    vi.mocked(upscaleImage).mockRejectedValueOnce(new Error("upscaler down"));
+    vi.mocked(deterministicCompose).mockResolvedValueOnce({
+      ok: true,
+      image: { data: "ZGV0", mimeType: "image/png" },
+      stats: { bgUniformity: 0.99, bgColor: { r: 255, g: 255, b: 255 }, coverage: 0.3, scale: 1 },
+    });
+    const res = await POST(makeRequest({ image: pngFile(), upscale: "true" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.upscaleFailed).toBe(true);
+    expect(body.pipeline).toBe("deterministic");
+  });
+});
+
+describe("POST /api/process extra photo URLs", () => {
+  function makeMultiRequest(fields: Array<[string, string | File]>) {
+    const fd = new FormData();
+    for (const [k, v] of fields) fd.append(k, v);
+    return new Request("http://localhost/api/process", { method: "POST", body: fd });
+  }
+
+  it("downloads extraUrl entries and passes them to the generator", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extraUrl", "https://cdn.shop.ua/e1.jpg"],
+        ["extraUrl", "https://cdn.shop.ua/e2.jpg"],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages).toHaveLength(2);
+    expect(arg.extraImages![0].data).toBe("ZnJvbVVybA==");
+  });
+
+  it("caps combined extra files and extra URLs at 4", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extra", pngFile()],
+        ["extra", pngFile()],
+        ["extra", pngFile()],
+        ["extraUrl", "https://cdn.shop.ua/e1.jpg"],
+        ["extraUrl", "https://cdn.shop.ua/e2.jpg"],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages).toHaveLength(4);
+  });
+
+  it("ignores empty extraUrl values", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extraUrl", ""],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages ?? []).toHaveLength(0);
   });
 });

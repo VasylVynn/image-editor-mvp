@@ -10,6 +10,8 @@ export interface SaveInput {
   promptUsed?: string;
   sku?: string;
   productName?: string;
+  /** Which path produced the image ("deterministic" | "generative"). */
+  pipeline?: string;
 }
 
 export interface SaveOutput {
@@ -50,6 +52,7 @@ export async function saveResult(
     sku: input.sku ?? null,
     productName: input.productName ?? null,
     prompt: input.promptUsed ?? null,
+    pipeline: input.pipeline ?? null,
   };
   await fs.appendFile(path.join(dir, "log.jsonl"), JSON.stringify(logEntry) + "\n");
 

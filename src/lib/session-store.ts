@@ -21,14 +21,24 @@ export interface PersistedSession {
   galleryImages: string[];
   mainUrl: string | null;
   refUrl: string | null;
+  /** Gallery images picked as extra references in URL mode. */
+  extraUrls?: string[];
   result: {
     image: string;
     promptUsed: string;
     analysis: string | null;
     analysisFailed: boolean;
     upscaleFailed?: boolean;
+    model?: string;
+    pipeline?: "deterministic" | "generative";
+    finalize?: "recompose" | "resize" | null;
+    finalizeFailed?: boolean;
+    deterministicReason?: string | null;
   };
   savedPath: string | null;
+  /** Groups all attempts on this product photo in the server events log. */
+  sessionId?: string | null;
+  attempt?: number;
 }
 
 export interface PersistedSettings {
@@ -39,6 +49,7 @@ export interface PersistedSettings {
   upscalerId: string;
   note: string;
   mode: "file" | "url";
+  pipeline?: "auto" | "deterministic" | "generative";
 }
 
 const DB_NAME = "catalog-editor";
