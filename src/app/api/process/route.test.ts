@@ -432,3 +432,53 @@ describe("review-pass additions", () => {
     expect(body.pipeline).toBe("deterministic");
   });
 });
+
+describe("POST /api/process extra photo URLs", () => {
+  function makeMultiRequest(fields: Array<[string, string | File]>) {
+    const fd = new FormData();
+    for (const [k, v] of fields) fd.append(k, v);
+    return new Request("http://localhost/api/process", { method: "POST", body: fd });
+  }
+
+  it("downloads extraUrl entries and passes them to the generator", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extraUrl", "https://cdn.shop.ua/e1.jpg"],
+        ["extraUrl", "https://cdn.shop.ua/e2.jpg"],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages).toHaveLength(2);
+    expect(arg.extraImages![0].data).toBe("ZnJvbVVybA==");
+  });
+
+  it("caps combined extra files and extra URLs at 4", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extra", pngFile()],
+        ["extra", pngFile()],
+        ["extra", pngFile()],
+        ["extraUrl", "https://cdn.shop.ua/e1.jpg"],
+        ["extraUrl", "https://cdn.shop.ua/e2.jpg"],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages).toHaveLength(4);
+  });
+
+  it("ignores empty extraUrl values", async () => {
+    const res = await POST(
+      makeMultiRequest([
+        ["image", pngFile()],
+        ["extraUrl", ""],
+      ])
+    );
+    expect(res.status).toBe(200);
+    const arg = vi.mocked(generateImage).mock.calls[0][0];
+    expect(arg.extraImages ?? []).toHaveLength(0);
+  });
+});

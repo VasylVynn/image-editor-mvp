@@ -21,6 +21,8 @@ export interface PersistedSession {
   galleryImages: string[];
   mainUrl: string | null;
   refUrl: string | null;
+  /** Gallery images picked as extra references in URL mode. */
+  extraUrls?: string[];
   result: {
     image: string;
     promptUsed: string;

@@ -61,6 +61,9 @@ export default function Home() {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [mainUrl, setMainUrl] = useState<string | null>(null);
   const [refUrl, setRefUrl] = useState<string | null>(null);
+  const [extraUrls, setExtraUrls] = useState<string[]>([]);
+  // Regenerate from the previous generated result instead of the originals.
+  const [fromResult, setFromResult] = useState(false);
 
   const [note, setNote] = useState("");
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -161,6 +164,7 @@ export default function Home() {
       setGalleryImages(session.galleryImages);
       setMainUrl(session.mainUrl);
       setRefUrl(session.refUrl);
+      setExtraUrls(session.extraUrls ?? []);
       if (session.main) {
         setMainFile(new File([session.main.blob], session.main.name, { type: session.main.type }));
       }
@@ -200,10 +204,11 @@ export default function Home() {
       attempt: attemptRef.current,
       mainUrl,
       refUrl,
+      extraUrls,
       result,
       savedPath,
     });
-  }, [result, stage, savedPath, mode, mainFile, refFile, extraFiles, productTitle, productSku, galleryImages, mainUrl, refUrl]);
+  }, [result, stage, savedPath, mode, mainFile, refFile, extraFiles, productTitle, productSku, galleryImages, mainUrl, refUrl, extraUrls]);
 
   // Keep object URLs for the compare view in sync with the selected files.
   useEffect(() => {
@@ -256,25 +261,46 @@ export default function Home() {
     setGalleryImages(product.images);
     setMainUrl(null);
     setRefUrl(null);
+    setExtraUrls([]);
+    setFromResult(false);
     // New product page fetched — new attempt chain.
     sessionIdRef.current = null;
     attemptRef.current = 0;
   }, []);
 
-  // Cycle a gallery thumbnail: none -> Основне -> Референс -> none.
-  // Only one image can hold each role; picking a new Основне clears the previous one.
+  // A different main photo is a different source — the events chain
+  // (attempt → note → attempt) only makes sense within one source photo.
+  const resetAttemptChain = useCallback(() => {
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
+    setFromResult(false);
+  }, []);
+
+  // Cycle a gallery thumbnail: none -> Основне -> Референс -> Додаткове -> none.
+  // Основне/Референс are single-slot; Додаткове can hold several (shared cap
+  // of 4 with the file-mode extras). Works after generation too, so the
+  // operator can reshuffle the selection before a regenerate.
   const cycleThumbnail = useCallback(
     (img: string) => {
       if (mainUrl === img) {
         setMainUrl(null);
         setRefUrl(img);
+        resetAttemptChain();
       } else if (refUrl === img) {
         setRefUrl(null);
+        // When the shared extras cap is already full the cycle skips the
+        // «Додаткове» state and lands on «нічого» — deliberate, not a drop.
+        setExtraUrls((prev) =>
+          prev.length + extraFiles.length < MAX_EXTRA_FILES ? [...prev, img] : prev
+        );
+      } else if (extraUrls.includes(img)) {
+        setExtraUrls((prev) => prev.filter((u) => u !== img));
       } else {
         setMainUrl(img);
+        resetAttemptChain();
       }
     },
-    [mainUrl, refUrl]
+    [mainUrl, refUrl, extraUrls, extraFiles.length, resetAttemptChain]
   );
 
   const hasMainImage = mode === "file" ? !!mainFile : !!mainUrl;
@@ -302,12 +328,26 @@ export default function Home() {
 
     try {
       const formData = new FormData();
-      if (mode === "file") {
+      const previousResult = resultRef.current;
+      if (fromResult && previousResult) {
+        // Iterate on the last generated image: it becomes the main input, the
+        // reference/extras/note still apply as usual.
+        const blob = await (await fetch(previousResult.image)).blob();
+        formData.append("image", new File([blob], "result.png", { type: blob.type || "image/png" }));
+        if (mode === "file") {
+          if (refFile) formData.append("reference", refFile);
+        } else if (refUrl) {
+          formData.append("referenceUrl", refUrl);
+        }
+      } else if (mode === "file") {
         formData.append("image", mainFile as File);
         if (refFile) formData.append("reference", refFile);
       } else {
         formData.append("imageUrl", mainUrl as string);
         if (refUrl) formData.append("referenceUrl", refUrl);
+      }
+      if (mode === "url") {
+        extraUrls.forEach((url) => formData.append("extraUrl", url));
       }
       // «Лише фон» takes no instructions — the field is disabled in the UI
       // and the value must not leak to the server from the kept state.
@@ -345,7 +385,7 @@ export default function Home() {
       // a failed regenerate shouldn't throw away an already-paid-for image.
       setStage(resultRef.current ? "done" : "idle");
     }
-  }, [mode, mainFile, refFile, extraFiles, mainUrl, refUrl, note, presetId, analyze, pipeline, engineId, upscale, upscalerId, updateResult]);
+  }, [mode, mainFile, refFile, extraFiles, mainUrl, refUrl, extraUrls, fromResult, note, presetId, analyze, pipeline, engineId, upscale, upscalerId, updateResult]);
 
   // Cancels an in-flight request and returns to a sane state. The fetch's own
   // AbortError branch above is a no-op, so this is the sole place that decides
@@ -369,6 +409,8 @@ export default function Home() {
     setGalleryImages([]);
     setMainUrl(null);
     setRefUrl(null);
+    setExtraUrls([]);
+    setFromResult(false);
     setNote("");
     setStage("idle");
     updateResult(null);
@@ -487,13 +529,20 @@ export default function Home() {
               {galleryImages.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {galleryImages.map((img) => {
-                    const badge = mainUrl === img ? "main" : refUrl === img ? "ref" : null;
+                    const badge =
+                      mainUrl === img
+                        ? "main"
+                        : refUrl === img
+                          ? "ref"
+                          : extraUrls.includes(img)
+                            ? "extra"
+                            : null;
                     return (
                       <button
                         type="button"
                         key={img}
                         onClick={() => cycleThumbnail(img)}
-                        disabled={stage !== "idle"}
+                        disabled={stage === "processing"}
                         className="relative border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm disabled:opacity-50"
                       >
                         {badge && (
@@ -501,10 +550,12 @@ export default function Home() {
                             className={`absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-medium ${
                               badge === "main"
                                 ? "bg-blue-600 text-white"
-                                : "bg-white/90 text-gray-700"
+                                : badge === "ref"
+                                  ? "bg-white/90 text-gray-700"
+                                  : "bg-gray-700/90 text-white"
                             }`}
                           >
-                            {badge === "main" ? "Основне" : "Референс"}
+                            {badge === "main" ? "Основне" : badge === "ref" ? "Референс" : "Додаткове"}
                           </span>
                         )}
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -768,6 +819,17 @@ export default function Home() {
                       />
                     </label>
                   )}
+                  <label
+                    className="flex items-center gap-2 px-3 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white cursor-pointer"
+                    title="Наступна генерація візьме за основу вже згенерований результат, а не оригінальне фото"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={fromResult}
+                      onChange={(e) => setFromResult(e.target.checked)}
+                    />
+                    Від результату
+                  </label>
                   <button
                     onClick={handleProcess}
                     className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"

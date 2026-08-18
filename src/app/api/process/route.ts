@@ -11,6 +11,7 @@ import { appendEvent } from "@/lib/events";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
+import { withTimeout } from "@/lib/timeout";
 import type { AnalysisResult, ImageInput } from "@/lib/types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -38,20 +39,6 @@ function validateFile(file: File, label: string): NextResponse | null {
     );
   }
   return null;
-}
-
-// Races a promise against a timeout so a hanging Gemini call can't keep the
-// request open forever. The underlying promise isn't cancelled (the SDK call
-// takes no signal) — its result is just discarded once the timeout wins.
-function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      AbortSignal.timeout(ms).addEventListener("abort", () => reject(new Error(timeoutMessage)), {
-        once: true,
-      });
-    }),
-  ]);
 }
 
 type Pipeline = "auto" | "deterministic" | "generative";
@@ -233,6 +220,16 @@ export async function POST(request: Request) {
       if (extraError) return extraError;
       extraImages.push(await toImageInput(extraFile));
     }
+    // Extra references picked from the URL-mode gallery; shares the cap of 4.
+    const extraUrls = formData
+      .getAll("extraUrl")
+      .filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "")
+      .slice(0, Math.max(0, 4 - extraImages.length));
+    extraImages.push(
+      ...(await Promise.all(
+        extraUrls.map((extraUrl) => downloadImage(extraUrl, undefined, request.signal))
+      ))
+    );
 
     const mode: "file" | "url" = file ? "file" : "url";
     const startedAt = Date.now();
