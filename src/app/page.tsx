@@ -396,9 +396,29 @@ export default function Home() {
   }, []);
 
 
-  // «Нове фото»: clears the work in progress (photos, gallery, result, note)
-  // and the persisted session, but keeps the operator's settings (preset,
-  // model, toggles) — they rarely change between photos.
+  // «Наступне фото» (URL mode): keeps the fetched product and its gallery,
+  // clears only the selection, result and note — the operator moves on to the
+  // next photo of the same product. A different photo = a new attempt chain.
+  const handleNextPhoto = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setMainUrl(null);
+    setRefUrl(null);
+    setExtraUrls([]);
+    setExtraFiles([]);
+    setFromResult(false);
+    setNote("");
+    setStage("idle");
+    updateResult(null);
+    setError(null);
+    setSavedPath(null);
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
+    void clearSession();
+  }, [updateResult]);
+
+  // «Нове фото» / «Новий товар»: clears the work in progress (photos, gallery,
+  // result, note) and the persisted session, but keeps the operator's settings
+  // (preset, model, toggles) — they rarely change between photos.
   const handleReset = useCallback(() => {
     abortControllerRef.current?.abort();
     setMainFile(null);
@@ -434,6 +454,55 @@ export default function Home() {
     setPipeline("auto");
     clearSettings();
   }, [handleReset]);
+
+  // Extra-photo chips + file picker, shared by the idle URL-mode block and the
+  // regenerate row. Manual files and gallery «Додаткове» picks share the cap.
+  const extraFilesPicker = (
+    <>
+      {extraFiles.map((file, index) => (
+        <span
+          key={`${file.name}-${index}`}
+          className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-sm text-gray-700"
+        >
+          {extraPreviewUrls[index] && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={extraPreviewUrls[index]}
+              alt={`Додаткове фото ${index + 1}`}
+              className="h-9 w-9 object-cover rounded"
+            />
+          )}
+          <button
+            onClick={() => setExtraFiles((prev) => prev.filter((_, i) => i !== index))}
+            title="Прибрати додаткове фото"
+            className="text-gray-400 hover:text-red-600"
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      {extraFiles.length + extraUrls.length < MAX_EXTRA_FILES && (
+        <label className="flex items-center px-4 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+          + Дод. фото
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length) {
+                setExtraFiles((prev) =>
+                  [...prev, ...files].slice(0, Math.max(0, MAX_EXTRA_FILES - extraUrls.length))
+                );
+              }
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
+    </>
+  );
 
   const defaultProductName =
     mode === "url"
@@ -563,6 +632,15 @@ export default function Home() {
                       </button>
                     );
                   })}
+                </div>
+              )}
+
+              {galleryImages.length > 0 && stage !== "done" && (
+                <div className="flex flex-wrap items-stretch gap-3">
+                  {extraFilesPicker}
+                  <span className="flex items-center text-xs text-gray-500">
+                    Додаткові фото: з галереї та/або файлами, разом до {MAX_EXTRA_FILES}
+                  </span>
                 </div>
               )}
             </div>
@@ -775,50 +853,7 @@ export default function Home() {
                     placeholder="Що виправити при перегенерації: напр. прибери вішак"
                     className="flex-1 min-w-[260px] border border-gray-300 rounded-lg px-3 py-3 text-sm bg-white text-gray-900 placeholder-gray-400"
                   />
-                  {extraFiles.map((file, index) => (
-                    <span
-                      key={`${file.name}-${index}`}
-                      className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 bg-white text-sm text-gray-700"
-                    >
-                      {extraPreviewUrls[index] && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={extraPreviewUrls[index]}
-                          alt={`Додаткове фото ${index + 1}`}
-                          className="h-9 w-9 object-cover rounded"
-                        />
-                      )}
-                      <button
-                        onClick={() =>
-                          setExtraFiles((prev) => prev.filter((_, i) => i !== index))
-                        }
-                        title="Прибрати додаткове фото"
-                        className="text-gray-400 hover:text-red-600"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                  {extraFiles.length < MAX_EXTRA_FILES && (
-                    <label className="flex items-center px-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
-                      + Дод. фото
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files ?? []);
-                          if (files.length) {
-                            setExtraFiles((prev) =>
-                              [...prev, ...files].slice(0, MAX_EXTRA_FILES)
-                            );
-                          }
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
-                  )}
+                  {extraFilesPicker}
                   <label
                     className="flex items-center gap-2 px-3 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white cursor-pointer"
                     title="Наступна генерація візьме за основу вже згенерований результат, а не оригінальне фото"
@@ -836,11 +871,20 @@ export default function Home() {
                   >
                     Перегенерувати
                   </button>
+                  {mode === "url" && galleryImages.length > 0 && (
+                    <button
+                      onClick={handleNextPhoto}
+                      title="Лишити цей товар і галерею, почати наступне фото"
+                      className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Наступне фото
+                    </button>
+                  )}
                   <button
                     onClick={handleReset}
                     className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Нове фото
+                    {mode === "url" ? "Новий товар" : "Нове фото"}
                   </button>
                 </div>
               </div>
@@ -850,12 +894,24 @@ export default function Home() {
           {/* Idle actions */}
           {stage !== "done" && (
             <div className="flex justify-center gap-4">
+              {mode === "url" &&
+                galleryImages.length > 0 &&
+                stage !== "processing" &&
+                (mainUrl || refUrl || extraUrls.length > 0 || extraFiles.length > 0 || note) && (
+                  <button
+                    onClick={handleNextPhoto}
+                    title="Лишити товар і галерею, скинути лише вибір і примітку"
+                    className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Наступне фото
+                  </button>
+                )}
               {hasMainImage && stage !== "processing" && (
                 <button
                   onClick={handleReset}
                   className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  Нове фото
+                  {mode === "url" ? "Новий товар" : "Нове фото"}
                 </button>
               )}
 
