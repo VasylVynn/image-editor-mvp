@@ -10,6 +10,10 @@ export interface SaveFormProps {
   defaultProductName: string;
   /** Engine that generated the result — analytics attribution. */
   model?: string;
+  /** Which path produced the result ("deterministic" | "generative"). */
+  pipeline?: string;
+  /** Links the save to its generation attempts in the events log. */
+  sessionId?: string;
   onSaved: (path: string) => void;
 }
 
@@ -20,6 +24,8 @@ export default function SaveForm({
   defaultSku,
   defaultProductName,
   model,
+  pipeline,
+  sessionId,
   onSaved,
 }: SaveFormProps) {
   const [sku, setSku] = useState(defaultSku);
@@ -50,6 +56,8 @@ export default function SaveForm({
           presetId,
           promptUsed,
           model,
+          pipeline,
+          sessionId,
         }),
       });
 

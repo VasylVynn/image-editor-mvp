@@ -15,6 +15,16 @@ export interface GenerationEvent {
   /** Operator-facing error class (the mapped Ukrainian message) when !ok. */
   errorClass?: string;
   upscaled?: boolean;
+  /** Which path produced the result. "deterministic" = local sharp compose,
+   *  no model call (engineId is "deterministic", cost 0). */
+  pipeline?: "deterministic" | "generative";
+  /** Operator's regenerate note — the failure label for the previous attempt.
+   *  This is the raw material for the future QA golden set. */
+  note?: string;
+  /** Client-generated id grouping all attempts on one product photo. */
+  sessionId?: string;
+  /** 1-based attempt number within the session. */
+  attempt?: number;
 }
 
 export interface SaveEvent {
@@ -23,6 +33,10 @@ export interface SaveEvent {
   engineId?: string;
   presetId: string;
   file?: string;
+  /** Which path produced the saved image. */
+  pipeline?: "deterministic" | "generative";
+  /** Links the save to its generation attempts (see GenerationEvent). */
+  sessionId?: string;
 }
 
 export type AppEvent = GenerationEvent | SaveEvent;

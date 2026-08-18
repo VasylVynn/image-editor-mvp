@@ -7,7 +7,7 @@ import { appendEvent } from "@/lib/events";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { image, sku, productName, presetId, promptUsed, model } = body as {
+    const { image, sku, productName, presetId, promptUsed, model, pipeline, sessionId } = body as {
       image?: string;
       sku?: string;
       productName?: string;
@@ -15,6 +15,10 @@ export async function POST(request: Request) {
       promptUsed?: string;
       /** Engine that generated the saved image — analytics attribution. */
       model?: string;
+      /** Which path produced the image ("deterministic" | "generative"). */
+      pipeline?: string;
+      /** Links the save to its generation attempts in the events log. */
+      sessionId?: string;
     };
 
     if (!image) {
@@ -40,12 +44,15 @@ export async function POST(request: Request) {
       promptUsed,
       sku,
       productName,
+      pipeline,
     });
     await appendEvent({
       type: "save",
       engineId: model,
       presetId: preset.id,
       file: filePath.split("/").pop(),
+      pipeline: pipeline === "deterministic" || pipeline === "generative" ? pipeline : undefined,
+      sessionId: typeof sessionId === "string" ? sessionId.slice(0, 64) : undefined,
     });
     return NextResponse.json({ path: filePath });
   } catch (error) {

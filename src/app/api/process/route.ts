@@ -1,20 +1,23 @@
 import { NextResponse } from "next/server";
 import { analyzeImages, formatAnalysis } from "@/lib/analyzer";
+import { deterministicCompose, finalizeGenerated } from "@/lib/deterministic";
 import { generateImage } from "@/lib/generator";
 import { generateWithFal } from "@/lib/fal-generator";
 import { getEngine, type Engine } from "@/lib/engines";
 import { upscaleImage } from "@/lib/upscaler";
-import { getUpscaler, type Upscaler } from "@/lib/upscalers";
+import { getUpscaler } from "@/lib/upscalers";
 import { colorSwatchImage } from "@/lib/color-swatch";
 import { appendEvent } from "@/lib/events";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { getPreset, type Preset } from "@/lib/presets";
 import { downloadImage } from "@/lib/product-fetcher";
-import type { ImageInput } from "@/lib/types";
+import type { AnalysisResult, ImageInput } from "@/lib/types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const GENERATION_TIMEOUT_MS = 120_000;
+const ROUTING_ANALYSIS_TIMEOUT_MS = 30_000;
+const UPSCALE_TIMEOUT_MS = 60_000;
 
 async function toImageInput(file: File): Promise<ImageInput> {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -51,12 +54,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string)
   ]);
 }
 
+type Pipeline = "auto" | "deterministic" | "generative";
+
+function parsePipeline(value: string | null): Pipeline {
+  return value === "deterministic" || value === "generative" ? value : "auto";
+}
+
 interface GenerationOutput {
   prompt: string;
   result: ImageInput;
   analysis: string | null;
   analysisFailed: boolean;
-  upscaleFailed: boolean;
+  /** How the model output was normalized to the exact preset format
+   *  (null when finalize was disabled or failed — raw model output). */
+  finalize: "recompose" | "resize" | null;
+  finalizeFailed: boolean;
 }
 
 async function runAnalysisAndGeneration(input: {
@@ -66,26 +78,19 @@ async function runAnalysisAndGeneration(input: {
   preset: Preset;
   note?: string;
   engine: Engine;
-  upscaler?: Upscaler;
   extraImages?: ImageInput[];
+  /** Analysis already produced by the routing step — don't re-run it. */
+  precomputedAnalysis?: AnalysisResult | null;
+  precomputedAnalysisFailed?: boolean;
+  /** Post-generation normalization to the exact preset format (default on). */
+  finalize: boolean;
 }): Promise<GenerationOutput> {
-  // Optional pre-step: upscale the (often tiny) source photo so the generator
-  // and analyzer work from more pixels. Soft-fails like analysis — the
-  // original image is a perfectly usable fallback.
-  let mainImage = input.mainImage;
-  let upscaleFailed = false;
-  if (input.upscaler) {
-    try {
-      mainImage = await upscaleImage(input.upscaler.falEndpoint, mainImage);
-    } catch (err) {
-      console.error("Upscale failed, using the original image:", err);
-      upscaleFailed = true;
-    }
-  }
-
+  const mainImage = input.mainImage;
   let analysis: string | null = null;
-  let analysisFailed = false;
-  if (input.analyze) {
+  let analysisFailed = input.precomputedAnalysisFailed ?? false;
+  if (input.precomputedAnalysis) {
+    analysis = formatAnalysis(input.precomputedAnalysis);
+  } else if (input.analyze && !analysisFailed) {
     try {
       const images = input.referenceImage ? [mainImage, input.referenceImage] : [mainImage];
       analysis = formatAnalysis(await analyzeImages(images));
@@ -120,11 +125,27 @@ async function runAnalysisAndGeneration(input: {
     imageSize: input.engine.imageSize,
     quality: input.engine.quality,
   };
-  const result = isFal
+  let result = isFal
     ? await generateWithFal(input.engine.falEndpoint!, generateInput)
     : await generateImage(generateInput);
 
-  return { prompt, result, analysis, analysisFailed, upscaleFailed };
+  // Geometry belongs to code, not the model: normalize the output to the
+  // exact preset dimensions, the exact background hex and true centering.
+  // Soft-fails — the raw model output is a usable fallback.
+  let finalize: GenerationOutput["finalize"] = null;
+  let finalizeFailed = false;
+  if (input.finalize) {
+    try {
+      const finalized = await finalizeGenerated(result, input.preset);
+      result = finalized.image;
+      finalize = finalized.method;
+    } catch (err) {
+      console.error("Finalize failed, returning the raw model output:", err);
+      finalizeFailed = true;
+    }
+  }
+
+  return { prompt, result, analysis, analysisFailed, finalize, finalizeFailed };
 }
 
 // Maps raw Gemini SDK error text to an operator-facing Ukrainian message.
@@ -171,6 +192,13 @@ export async function POST(request: Request) {
     const upscaler = upscaleEnabled
       ? getUpscaler(formData.get("upscaler") as string | null)
       : undefined;
+    const pipeline = parsePipeline(formData.get("pipeline") as string | null);
+    const finalizeEnabled = (formData.get("finalize") as string) !== "false";
+    // Attempt bookkeeping for the events log; both are optional and client-generated.
+    const sessionId = ((formData.get("sessionId") as string) || undefined)?.slice(0, 64);
+    const attemptRaw = Number(formData.get("attempt"));
+    const attempt = Number.isInteger(attemptRaw) && attemptRaw > 0 ? attemptRaw : undefined;
+    const loggedNote = note?.trim() ? note.trim().slice(0, 500) : undefined;
 
     const preset = await getPreset(presetId);
 
@@ -208,10 +236,143 @@ export async function POST(request: Request) {
 
     const mode: "file" | "url" = file ? "file" : "url";
     const startedAt = Date.now();
+
+    // Optional pre-step, shared by BOTH paths: upscale the (often tiny)
+    // source photo so the compose/analyzer/generator work from more pixels.
+    // Soft-fails — the original image is a perfectly usable fallback.
+    let upscaleFailed = false;
+    if (upscaler) {
+      try {
+        mainImage = await withTimeout(
+          upscaleImage(upscaler.falEndpoint, mainImage),
+          UPSCALE_TIMEOUT_MS,
+          `Upscale timeout after ${UPSCALE_TIMEOUT_MS}ms`
+        );
+      } catch (err) {
+        console.error("Upscale failed, using the original image:", err);
+        upscaleFailed = true;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Routing. The deterministic path (local sharp compose, product pixels
+    // untouched, $0) runs when:
+    //   - forced by the operator (pipeline=deterministic), or
+    //   - pipeline=auto AND nothing implies a semantic edit: no operator
+    //     note, no reference/extra images, analysis is on and reports no
+    //     unwanted objects, and the compose gates (uniform background) pass.
+    // Everything else goes to the generative path.
+    // ---------------------------------------------------------------------
+    let precomputedAnalysis: AnalysisResult | null = null;
+    let precomputedAnalysisFailed = false;
+    let deterministicReason: string | null = null;
+
+    const wantsSemanticEdit =
+      !!note?.trim() || !!referenceImage || extraImages.length > 0;
+
+    if (pipeline === "deterministic" && note?.trim()) {
+      return NextResponse.json(
+        {
+          error:
+            "Режим «Лише фон — без AI» не виконує текстові інструкції. Приберіть примітку або оберіть режим AI.",
+        },
+        { status: 422 }
+      );
+    }
+
+    if (pipeline === "deterministic" || (pipeline === "auto" && !wantsSemanticEdit && analyze)) {
+      let unwantedObjects: string[] | null = pipeline === "deterministic" ? [] : null;
+      if (pipeline === "auto") {
+        try {
+          precomputedAnalysis = await withTimeout(
+            analyzeImages(referenceImage ? [mainImage, referenceImage] : [mainImage]),
+            ROUTING_ANALYSIS_TIMEOUT_MS,
+            `Analysis timeout after ${ROUTING_ANALYSIS_TIMEOUT_MS}ms`
+          );
+          unwantedObjects = precomputedAnalysis.unwantedObjects ?? [];
+        } catch (err) {
+          console.error("Analysis failed, falling back to base prompt:", err);
+          precomputedAnalysisFailed = true;
+        }
+      }
+
+      if (unwantedObjects && unwantedObjects.length === 0) {
+        try {
+          const composed = await deterministicCompose(mainImage, preset);
+          if (composed.ok) {
+            await appendEvent({
+              type: "generation",
+              engineId: "deterministic",
+              presetId: preset.id,
+              mode,
+              durationMs: Date.now() - startedAt,
+              ok: true,
+              upscaled: !!upscaler,
+              pipeline: "deterministic",
+              note: loggedNote,
+              sessionId,
+              attempt,
+            });
+            return NextResponse.json({
+              image: `data:${composed.image.mimeType};base64,${composed.image.data}`,
+              promptUsed: "",
+              analysis: precomputedAnalysis ? formatAnalysis(precomputedAnalysis) : null,
+              analysisFailed: precomputedAnalysisFailed,
+              upscaleFailed,
+              model: "deterministic",
+              pipeline: "deterministic",
+              finalize: null,
+              finalizeFailed: false,
+            });
+          }
+          deterministicReason = composed.reason;
+        } catch (err) {
+          console.error("Deterministic compose failed, falling back to generation:", err);
+          deterministicReason = "внутрішня помилка обробки";
+        }
+      } else if (unwantedObjects && unwantedObjects.length > 0) {
+        deterministicReason = `на фото є зайві об'єкти: ${unwantedObjects.join(", ")}`;
+      }
+
+      // Forced deterministic must not silently burn money on a model call —
+      // tell the operator why it can't work and let them switch modes.
+      if (pipeline === "deterministic") {
+        await appendEvent({
+          type: "generation",
+          engineId: "deterministic",
+          presetId: preset.id,
+          mode,
+          durationMs: Date.now() - startedAt,
+          ok: false,
+          errorClass: deterministicReason ?? "невідома причина",
+          upscaled: !!upscaler,
+          pipeline: "deterministic",
+          note: loggedNote,
+          sessionId,
+          attempt,
+        });
+        return NextResponse.json(
+          { error: `Детермінована обробка неможлива: ${deterministicReason}. Оберіть режим AI.` },
+          { status: 422 }
+        );
+      }
+    }
+
     let generation: GenerationOutput;
     try {
       generation = await withTimeout(
-        runAnalysisAndGeneration({ mainImage, referenceImage, analyze, preset, note, engine, upscaler, extraImages }),
+        runAnalysisAndGeneration({
+          mainImage,
+          referenceImage,
+          analyze,
+          preset,
+          note,
+          engine,
+          extraImages,
+          precomputedAnalysis,
+          precomputedAnalysisFailed,
+          finalize: finalizeEnabled,
+        }),
         GENERATION_TIMEOUT_MS,
         `Generation timeout after ${GENERATION_TIMEOUT_MS}ms`
       );
@@ -228,6 +389,10 @@ export async function POST(request: Request) {
         ok: false,
         errorClass: message,
         upscaled: !!upscaler,
+        pipeline: "generative",
+        note: loggedNote,
+        sessionId,
+        attempt,
       });
       return NextResponse.json(
         { error: message, details: message !== rawMessage ? rawMessage : undefined },
@@ -243,6 +408,10 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startedAt,
       ok: true,
       upscaled: !!upscaler,
+      pipeline: "generative",
+      note: loggedNote,
+      sessionId,
+      attempt,
     });
 
     return NextResponse.json({
@@ -250,8 +419,12 @@ export async function POST(request: Request) {
       promptUsed: generation.prompt,
       analysis: generation.analysis,
       analysisFailed: generation.analysisFailed,
-      upscaleFailed: generation.upscaleFailed,
+      upscaleFailed,
       model: engine.id,
+      pipeline: "generative",
+      finalize: generation.finalize,
+      finalizeFailed: generation.finalizeFailed,
+      deterministicReason,
     });
   } catch (error) {
     console.error("Processing error:", error);
