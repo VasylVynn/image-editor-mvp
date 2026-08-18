@@ -396,9 +396,28 @@ export default function Home() {
   }, []);
 
 
-  // «Нове фото»: clears the work in progress (photos, gallery, result, note)
-  // and the persisted session, but keeps the operator's settings (preset,
-  // model, toggles) — they rarely change between photos.
+  // «Наступне фото» (URL mode): keeps the fetched product and its gallery,
+  // clears only the selection, result and note — the operator moves on to the
+  // next photo of the same product. A different photo = a new attempt chain.
+  const handleNextPhoto = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setMainUrl(null);
+    setRefUrl(null);
+    setExtraUrls([]);
+    setFromResult(false);
+    setNote("");
+    setStage("idle");
+    updateResult(null);
+    setError(null);
+    setSavedPath(null);
+    sessionIdRef.current = null;
+    attemptRef.current = 0;
+    void clearSession();
+  }, [updateResult]);
+
+  // «Нове фото» / «Новий товар»: clears the work in progress (photos, gallery,
+  // result, note) and the persisted session, but keeps the operator's settings
+  // (preset, model, toggles) — they rarely change between photos.
   const handleReset = useCallback(() => {
     abortControllerRef.current?.abort();
     setMainFile(null);
@@ -836,11 +855,20 @@ export default function Home() {
                   >
                     Перегенерувати
                   </button>
+                  {mode === "url" && galleryImages.length > 0 && (
+                    <button
+                      onClick={handleNextPhoto}
+                      title="Лишити цей товар і галерею, почати наступне фото"
+                      className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      Наступне фото
+                    </button>
+                  )}
                   <button
                     onClick={handleReset}
                     className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Нове фото
+                    {mode === "url" ? "Новий товар" : "Нове фото"}
                   </button>
                 </div>
               </div>
@@ -855,7 +883,7 @@ export default function Home() {
                   onClick={handleReset}
                   className="px-6 py-3 bg-white border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  Нове фото
+                  {mode === "url" ? "Новий товар" : "Нове фото"}
                 </button>
               )}
 
