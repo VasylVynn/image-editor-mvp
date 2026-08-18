@@ -37,6 +37,8 @@ export interface SaveEvent {
   pipeline?: "deterministic" | "generative";
   /** Links the save to its generation attempts (see GenerationEvent). */
   sessionId?: string;
+  /** The saved file went through a final upscale (cost attribution). */
+  upscaled?: boolean;
 }
 
 export type AppEvent = GenerationEvent | SaveEvent;
