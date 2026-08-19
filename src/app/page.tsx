@@ -33,8 +33,8 @@ interface ProcessResult {
   model?: string;
   /** Which path produced the result. */
   pipeline?: "deterministic" | "generative";
-  /** How the model output was normalized ("recompose" | "resize" | null). */
-  finalize?: "recompose" | "resize" | null;
+  /** How the model output was normalized to the preset size ("resize" | null). */
+  finalize?: "resize" | null;
   finalizeFailed?: boolean;
   /** Why auto mode fell back to generation (deterministic gate reason). */
   deterministicReason?: string | null;
@@ -178,7 +178,10 @@ export default function Home() {
       setSavedPath(session.savedPath);
       sessionIdRef.current = session.sessionId ?? null;
       attemptRef.current = session.attempt ?? 0;
-      updateResult(session.result);
+      // Legacy persisted records may carry "recompose" from before the
+      // finalize step became size-only — drop it rather than mislabel.
+      const { finalize, ...restored } = session.result;
+      updateResult({ ...restored, finalize: finalize === "recompose" ? null : finalize });
       setStage("done");
     });
   }, [updateResult]);
@@ -809,7 +812,7 @@ export default function Home() {
                   </span>
                 ) : result.pipeline === "generative" ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700">
-                    AI-генерація{result.finalize === "recompose" ? " · фон і розмір нормалізовано" : ""}
+                    AI-генерація{result.finalize === "resize" ? " · розмір нормалізовано" : ""}
                   </span>
                 ) : null}
                 {result.pipeline === "generative" && result.deterministicReason && (

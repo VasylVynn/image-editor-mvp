@@ -22,7 +22,7 @@ vi.mock("@/lib/deterministic", () => ({
   // the raw engine bytes keep holding.
   finalizeGenerated: vi.fn(async (image: { data: string; mimeType: string }) => ({
     image,
-    method: "recompose" as const,
+    method: "resize" as const,
     bgUniformity: 0.99,
   })),
 }));
@@ -359,14 +359,14 @@ describe("finalize step", () => {
   it("normalizes the model output and reports the method", async () => {
     vi.mocked(finalizeGenerated).mockResolvedValueOnce({
       image: { data: "Zml4ZWQ=", mimeType: "image/png" },
-      method: "recompose",
+      method: "resize",
       bgUniformity: 0.98,
     });
     const res = await POST(makeRequest({ image: pngFile(), pipeline: "generative" }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.image).toBe("data:image/png;base64,Zml4ZWQ=");
-    expect(body.finalize).toBe("recompose");
+    expect(body.finalize).toBe("resize");
     expect(body.finalizeFailed).toBe(false);
   });
 

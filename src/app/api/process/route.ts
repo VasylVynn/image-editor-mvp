@@ -52,9 +52,9 @@ interface GenerationOutput {
   result: ImageInput;
   analysis: string | null;
   analysisFailed: boolean;
-  /** How the model output was normalized to the exact preset format
+  /** How the model output was normalized to the exact preset size
    *  (null when finalize was disabled or failed — raw model output). */
-  finalize: "recompose" | "resize" | null;
+  finalize: "resize" | null;
   finalizeFailed: boolean;
 }
 
@@ -117,8 +117,9 @@ async function runAnalysisAndGeneration(input: {
     : await generateImage(generateInput);
 
   // Geometry belongs to code, not the model: normalize the output to the
-  // exact preset dimensions, the exact background hex and true centering.
-  // Soft-fails — the raw model output is a usable fallback.
+  // exact preset dimensions (size only — background is left as generated,
+  // recompose shifted product colors). Soft-fails — the raw model output is
+  // a usable fallback.
   let finalize: GenerationOutput["finalize"] = null;
   let finalizeFailed = false;
   if (input.finalize) {

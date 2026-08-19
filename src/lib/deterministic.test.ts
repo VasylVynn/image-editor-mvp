@@ -207,25 +207,31 @@ describe("deterministicCompose", () => {
 });
 
 describe("finalizeGenerated", () => {
-  it("normalizes a near-target model output to the exact hex, size and centering", async () => {
+  it("normalizes only the size — model background and product colors stay untouched", async () => {
     // Model returned 1000×1400 with an "almost #E9E9E9" background and an
-    // off-center product — the realistic Gemini output shape.
+    // off-center product — the realistic Gemini output shape. Background
+    // recompose is deliberately not applied: it shifted product colors.
+    const modelBg = { r: 0xe7, g: 0xe8, b: 0xeb };
     const input = await fixture({
       width: 1000,
       height: 1400,
-      bg: { r: 0xe7, g: 0xe8, b: 0xeb },
+      bg: modelBg,
       rect: { left: 120, top: 200, width: 400, height: 700, color: RED },
       noise: 2,
     });
     const result = await finalizeGenerated(input, PRESET);
-    expect(result.method).toBe("recompose");
+    expect(result.method).toBe("resize");
     const out = await decodeResult(result.image);
     expect(out.width).toBe(PRESET.width);
     expect(out.height).toBe(PRESET.height);
-    expect(out.px(0, 0)).toEqual({ r: 0xe9, g: 0xe9, b: 0xe9 });
+    // The model's own background survives inside the content area (no
+    // replacement with the exact preset hex).
+    const center = out.px(Math.round(PRESET.width / 2), 5);
+    expect(Math.abs(center.r - modelBg.r)).toBeLessThanOrEqual(4);
+    expect(Math.abs(center.g - modelBg.g)).toBeLessThanOrEqual(4);
+    expect(Math.abs(center.b - modelBg.b)).toBeLessThanOrEqual(4);
     const box = findBox(out, RED, 12);
     expect(box).toBeTruthy();
-    expect(Math.abs((box!.x0 + box!.x1) / 2 - PRESET.width / 2)).toBeLessThanOrEqual(2);
   });
 
   it("degrades to a contain-resize when the background is not uniform", async () => {

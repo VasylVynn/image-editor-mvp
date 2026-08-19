@@ -5,9 +5,10 @@ import type { Preset } from "./preset-schema";
 // Level A of the pipeline: photos that only need background / size / centering
 // work are composed locally with sharp — the model is never called and the
 // product pixels are carried over bit-for-bit (see the alpha blend below:
-// alpha 255 reproduces the source pixel exactly). The same recompose doubles
-// as the finalize step for generated images, normalizing the model's
-// "almost right" background and dimensions to the exact preset values.
+// alpha 255 reproduces the source pixel exactly). Generated images get a much
+// lighter finalize step: size-only normalization (contain-resize to the exact
+// preset dimensions) — background recompose shifted product colors on model
+// outputs, so it is reserved for the deterministic path.
 //
 // Tunables are calibrated on the synthetic fixtures in deterministic.test.ts.
 
@@ -33,11 +34,8 @@ const MAX_UPSCALE = 2;
 const SAFE_WIDTH = 0.8;
 const SAFE_HEIGHT = 0.84;
 
-/** How strictly each entry point gates on background uniformity. */
+/** How strictly the deterministic entry point gates on background uniformity. */
 const STRICT_GATE = { uniformityMin: 0.97 };
-/** Model outputs get a looser gate: slight vignette is normal and the
- *  recompose is exactly what fixes it. */
-const FINALIZE_GATE = { uniformityMin: 0.9 };
 
 interface RawImage {
   data: Buffer;
@@ -74,10 +72,11 @@ export type DeterministicOutcome =
 
 export interface FinalizeOutcome {
   image: ImageInput;
-  /** "recompose" — background replaced with the exact hex and the product
-   *  recentered; "resize" — uniformity gate failed, plain contain-resize onto
-   *  the preset background (exact dimensions, but a visible seam is possible). */
-  method: "recompose" | "resize";
+  /** Always "resize": plain contain-resize onto the preset background — exact
+   *  dimensions, model background and product colors untouched. ("recompose"
+   *  was retired: replacing the background alpha-blended edge pixels and
+   *  visibly shifted product colors on generated images.) */
+  method: "resize";
   bgUniformity: number;
 }
 
@@ -347,32 +346,17 @@ export async function deterministicCompose(
 }
 
 /**
- * Post-generation normalization: models return "almost" the requested
- * background and size; this enforces the exact preset hex, exact dimensions
- * and true centering. Never throws away the generation — when the recompose
- * gates fail it degrades to a plain contain-resize onto the preset color.
+ * Post-generation normalization, size only: models return "almost" the
+ * requested dimensions; this contain-resizes to the exact preset size.
+ * The model's background and product colors are left untouched — background
+ * recompose visibly shifted product colors on generated images.
  */
 export async function finalizeGenerated(
   input: ImageInput,
   preset: Preset
 ): Promise<FinalizeOutcome> {
   const image = await decode(input);
-  const { color, uniformity } = estimateBackground(image);
-
-  if (uniformity >= FINALIZE_GATE.uniformityMin) {
-    const { alpha } = buildAlphaAdaptive(image, color);
-    const strongBox = boundingBox(alpha, image.width, image.height, STRONG_ALPHA);
-    if (strongBox) {
-      const coverage =
-        ((strongBox.x1 - strongBox.x0 + 1) * (strongBox.y1 - strongBox.y0 + 1)) /
-        (image.width * image.height);
-      if (coverage >= MIN_COVERAGE && coverage <= MAX_COVERAGE) {
-        const softBox = boundingBox(alpha, image.width, image.height, SOFT_ALPHA) ?? strongBox;
-        const { image: composed } = await recompose(image, alpha, softBox, strongBox, preset);
-        return { image: composed, method: "recompose", bgUniformity: uniformity };
-      }
-    }
-  }
+  const { uniformity } = estimateBackground(image);
 
   const resized = await sharp(Buffer.from(input.data, "base64"))
     .rotate()

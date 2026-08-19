@@ -31,6 +31,8 @@ export interface PersistedSession {
     upscaleFailed?: boolean;
     model?: string;
     pipeline?: "deterministic" | "generative";
+    // "recompose" only appears in records persisted before the finalize step
+    // became size-only.
     finalize?: "recompose" | "resize" | null;
     finalizeFailed?: boolean;
     deterministicReason?: string | null;
